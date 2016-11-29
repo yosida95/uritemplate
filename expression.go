@@ -12,7 +12,7 @@ import (
 
 type varspec struct {
 	name    string
-	prefix  int
+	maxlen  int
 	explode bool
 }
 

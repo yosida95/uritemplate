@@ -8,7 +8,20 @@ package uritemplate
 
 import (
 	"bytes"
+	"log"
 )
+
+var (
+	debug = debugT(false)
+)
+
+type debugT bool
+
+func (t debugT) Printf(format string, v ...interface{}) {
+	if t {
+		log.Printf(format, v...)
+	}
+}
 
 type Value interface {
 }
@@ -23,6 +36,21 @@ type ValueList []string
 // Template represents an URI Template.
 type Template struct {
 	exprs []expression
+}
+
+// New parse and construct new Template instance based on the template.
+// New returns an error if the template cannot be recognized.
+func New(template string) (*Template, error) {
+	return (&parser{r: template}).parseURITemplate()
+}
+
+// MustNew panics if the template cannot be recognized.
+func MustNew(template string) *Template {
+	ret, err := New(template)
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }
 
 // Expand returns an URI reference corresponding t and vars.
