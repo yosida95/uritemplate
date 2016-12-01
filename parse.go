@@ -231,7 +231,7 @@ func (p *parser) consumeVariableList() ([]varspec, error) {
 	}
 }
 
-func (p *parser) consumeExpression() (expression, error) {
+func (p *parser) consumeExpression() (template, error) {
 	debug.Printf("consumeExpression: %q", p.r)
 
 	p.dropN(1) // '{'
@@ -253,29 +253,42 @@ func (p *parser) consumeExpression() (expression, error) {
 	}
 	p.dropN(1) // '}'
 
+	ret := expression{
+		vars: varspecs,
+	}
 	switch op {
 	case parseOpSimple:
-		return &expSimple{vars: varspecs}, nil
+		ret.sep = ","
 	case parseOpPlus:
-		return &expPlus{vars: varspecs}, nil
+		ret.sep = ","
 	case parseOpCrosshatch:
-		return &expCrosshatch{vars: varspecs}, nil
+		ret.first = "#"
+		ret.sep = ","
 	case parseOpDot:
-		return &expDot{vars: varspecs}, nil
+		ret.first = "."
+		ret.sep = "."
 	case parseOpSlash:
-		return &expSlash{vars: varspecs}, nil
+		ret.first = "/"
+		ret.sep = "/"
 	case parseOpSemicolon:
-		return &expSemicolon{vars: varspecs}, nil
+		ret.first = ";"
+		ret.sep = ";"
+		ret.named = true
 	case parseOpQuestion:
-		return &expQuestion{vars: varspecs}, nil
+		ret.first = "?"
+		ret.sep = "&"
+		ret.named = true
+		ret.ifemp = "="
 	case parseOpAmpersand:
-		return &expAmpersand{vars: varspecs}, nil
-	default:
-		return nil, errorf(p.read, "unsupported operator")
+		ret.first = "&"
+		ret.sep = "&"
+		ret.named = true
+		ret.ifemp = "="
 	}
+	return &ret, nil
 }
 
-func (p *parser) consumeLiterals() (expression, error) {
+func (p *parser) consumeLiterals() (template, error) {
 	debug.Printf("consumeLiterals: %q", p.r)
 	state := parseStateDefault
 	i := 0
@@ -316,7 +329,7 @@ Loop:
 	if state != parseStateDefault {
 		return nil, errorf(p.read+i, "invalid pct-encoded")
 	}
-	exp := expLiterals(p.r[:i])
+	exp := literals(p.r[:i])
 	p.dropN(i)
 	return exp, nil
 }
@@ -324,14 +337,14 @@ Loop:
 func (p *parser) parseURITemplate() (*Template, error) {
 	debug.Printf("parseURITemplate: %q", p.r)
 	tmpl := Template{
-		exprs: []expression{},
+		exprs: []template{},
 	}
 	for {
 		if len(p.r) == 0 {
 			break
 		}
 
-		var expr expression
+		var expr template
 		var err error
 		if p.r[0] == '{' {
 			expr, err = p.consumeExpression()

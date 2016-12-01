@@ -23,35 +23,9 @@ func (t debugT) Printf(format string, v ...interface{}) {
 	}
 }
 
-type Value interface {
-}
-
-// String returns Value that represents string.
-func String(v string) Value {
-	return List(v)
-}
-
-// List returns Value that represents list.
-func List(v ...string) Value {
-	return valueList(v)
-}
-
-// KV returns Value that represents associative list.
-// KV panics if len(kv) is not even.
-func KV(kv ...string) Value {
-	if len(kv)%2 != 0 {
-		panic("uritemplate.go: count of the kv must be even number")
-	}
-	return valueKV(kv)
-}
-
-type valueKV []string
-
-type valueList []string
-
 // Template represents an URI Template.
 type Template struct {
-	exprs []expression
+	exprs []template
 }
 
 // New parse and construct new Template instance based on the template.
@@ -70,7 +44,7 @@ func MustNew(template string) *Template {
 }
 
 // Expand returns an URI reference corresponding t and vars.
-func (t *Template) Expand(vars map[string]Value) (string, error) {
+func (t *Template) Expand(vars Values) (string, error) {
 	w := bytes.Buffer{}
 	for i := range t.exprs {
 		expr := t.exprs[i]
