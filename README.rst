@@ -22,7 +22,7 @@ Example
 
    func main() {
        vars := map[string]uritemplate.Value{
-           "term": uritemplate.ValueList{"cat"},
+           "term": uritemplate.String("cat"),
        }
        ret, err := tmpl.Expand(vars)
        if err != nil{

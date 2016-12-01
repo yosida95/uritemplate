@@ -26,12 +26,28 @@ func (t debugT) Printf(format string, v ...interface{}) {
 type Value interface {
 }
 
-// ValueKV represents a template variable which is typed as a list of
-// key-value pairs. Length of the ValueKV instance must be multiples of two.
-type ValueKV []string
+// String returns Value that represents string.
+func String(v string) Value {
+	return List(v)
+}
 
-// ValueList represents a list
-type ValueList []string
+// List returns Value that represents list.
+func List(v ...string) Value {
+	return valueList(v)
+}
+
+// KV returns Value that represents associative list.
+// KV panics if len(kv) is not even.
+func KV(kv ...string) Value {
+	if len(kv)%2 != 0 {
+		panic("uritemplate.go: count of the kv must be even number")
+	}
+	return valueKV(kv)
+}
+
+type valueKV []string
+
+type valueList []string
 
 // Template represents an URI Template.
 type Template struct {
