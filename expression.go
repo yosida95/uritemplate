@@ -33,6 +33,7 @@ type expression struct {
 	sep    string
 	named  bool
 	ifemp  string
+	escape escapeFunc
 }
 
 func (e *expression) expand(w *bytes.Buffer, values Values) error {
