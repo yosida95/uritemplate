@@ -20,9 +20,9 @@ type expression interface {
 	expand(io.Writer, map[string]Value) error
 }
 
-type expNoop string
+type expLiterals string
 
-func (exp expNoop) expand(w io.Writer, _ map[string]Value) error {
+func (exp expLiterals) expand(w io.Writer, _ map[string]Value) error {
 	w.Write([]byte(exp))
 	return nil
 }

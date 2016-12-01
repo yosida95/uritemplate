@@ -316,7 +316,7 @@ Loop:
 	if state != parseStateDefault {
 		return nil, errorf(p.read+i, "invalid pct-encoded")
 	}
-	exp := expNoop(p.r[:i])
+	exp := expLiterals(p.r[:i])
 	p.dropN(i)
 	return exp, nil
 }

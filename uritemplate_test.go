@@ -21,7 +21,7 @@ var (
 			raw: "http://www.example.com/foo{?query,number}",
 			tmpl: &Template{
 				exprs: []expression{
-					expNoop("http://www.example.com/foo"),
+					expLiterals("http://www.example.com/foo"),
 					&expQuestion{
 						vars: []varspec{
 							varspec{
