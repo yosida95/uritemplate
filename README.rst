@@ -21,9 +21,8 @@ Example
    )
 
    func main() {
-       vars := map[string]uritemplate.Value{
-           "term": uritemplate.String("cat"),
-       }
+       vars := uritemplate.Values{}
+       vars.Set("term", uritemplate.String("cat"))
        ret, err := tmpl.Expand(vars)
        if err != nil{
            fmt.Println(err)

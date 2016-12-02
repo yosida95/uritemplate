@@ -13,9 +13,8 @@ import (
 func Example() {
 	tmpl := MustNew("https://example.com/dictionary/{term:1}/{term}")
 
-	vars := map[string]Value{
-		"term": String("cat"),
-	}
+	vars := Values{}
+	vars.Set("term", String("cat"))
 	ret, err := tmpl.Expand(vars)
 	if err != nil {
 		fmt.Println(err)
