@@ -255,44 +255,9 @@ func (p *parser) consumeExpression() (template, error) {
 
 	ret := expression{
 		vars: varspecs,
+		op:   op,
 	}
-	switch op {
-	case parseOpSimple:
-		ret.sep = ","
-		ret.escape = escapeExceptU
-	case parseOpPlus:
-		ret.sep = ","
-		ret.escape = escapeExceptUR
-	case parseOpCrosshatch:
-		ret.first = "#"
-		ret.sep = ","
-		ret.escape = escapeExceptUR
-	case parseOpDot:
-		ret.first = "."
-		ret.sep = "."
-		ret.escape = escapeExceptU
-	case parseOpSlash:
-		ret.first = "/"
-		ret.sep = "/"
-		ret.escape = escapeExceptU
-	case parseOpSemicolon:
-		ret.first = ";"
-		ret.sep = ";"
-		ret.named = true
-		ret.escape = escapeExceptU
-	case parseOpQuestion:
-		ret.first = "?"
-		ret.sep = "&"
-		ret.named = true
-		ret.ifemp = "="
-		ret.escape = escapeExceptU
-	case parseOpAmpersand:
-		ret.first = "&"
-		ret.sep = "&"
-		ret.named = true
-		ret.ifemp = "="
-		ret.escape = escapeExceptU
-	}
+	ret.init()
 	return &ret, nil
 }
 

@@ -29,11 +29,52 @@ type varspec struct {
 
 type expression struct {
 	vars   []varspec
+	op     int
 	first  string
 	sep    string
 	named  bool
 	ifemp  string
 	escape escapeFunc
+}
+
+func (e *expression) init() {
+	switch e.op {
+	case parseOpSimple:
+		e.sep = ","
+		e.escape = escapeExceptU
+	case parseOpPlus:
+		e.sep = ","
+		e.escape = escapeExceptUR
+	case parseOpCrosshatch:
+		e.first = "#"
+		e.sep = ","
+		e.escape = escapeExceptUR
+	case parseOpDot:
+		e.first = "."
+		e.sep = "."
+		e.escape = escapeExceptU
+	case parseOpSlash:
+		e.first = "/"
+		e.sep = "/"
+		e.escape = escapeExceptU
+	case parseOpSemicolon:
+		e.first = ";"
+		e.sep = ";"
+		e.named = true
+		e.escape = escapeExceptU
+	case parseOpQuestion:
+		e.first = "?"
+		e.sep = "&"
+		e.named = true
+		e.ifemp = "="
+		e.escape = escapeExceptU
+	case parseOpAmpersand:
+		e.first = "&"
+		e.sep = "&"
+		e.named = true
+		e.ifemp = "="
+		e.escape = escapeExceptU
+	}
 }
 
 func (e *expression) expand(w *bytes.Buffer, values Values) error {
