@@ -9,6 +9,7 @@ package uritemplate
 import (
 	"bytes"
 	"log"
+	"sync"
 )
 
 var (
@@ -26,6 +27,10 @@ func (t debugT) Printf(format string, v ...interface{}) {
 // Template represents an URI Template.
 type Template struct {
 	exprs []template
+
+	// protects varnames
+	mu       sync.Mutex
+	varnames []string
 }
 
 // New parse and construct new Template instance based on the template.
@@ -41,6 +46,35 @@ func MustNew(template string) *Template {
 		panic(err)
 	}
 	return ret
+}
+
+// Varnames returns variable names used in the t
+func (t *Template) Varnames() []string {
+	t.mu.Lock()
+	if t.varnames != nil {
+		t.mu.Unlock()
+		return t.varnames
+	}
+
+	reg := map[string]struct{}{}
+	t.varnames = []string{}
+	for i := range t.exprs {
+		expr, ok := t.exprs[i].(*expression)
+		if !ok {
+			continue
+		}
+		for i := range expr.vars {
+			spec := expr.vars[i]
+			if _, ok := reg[spec.name]; ok {
+				continue
+			}
+			reg[spec.name] = struct{}{}
+			t.varnames = append(t.varnames, spec.name)
+		}
+	}
+	t.mu.Unlock()
+
+	return t.varnames
 }
 
 // Expand returns an URI reference corresponding t and vars.
