@@ -6,6 +6,10 @@
 
 package uritemplate
 
+import (
+	"bytes"
+)
+
 type Values map[string]Value
 
 func (v Values) Set(name string, value Value) {
@@ -21,8 +25,7 @@ func (v Values) Get(name string) Value {
 
 type Value interface {
 	defined() bool
-	empty() bool
-	expand(int, func(k string, v string, first bool) error) error
+	expand(w *bytes.Buffer, spec varspec, e *expression) error
 }
 
 // String returns Value that represents string.
@@ -36,18 +39,23 @@ func (v valueString) defined() bool {
 	return true
 }
 
-func (v valueString) empty() bool {
-	return len(v) == 0
-}
-
-func (v valueString) expand(maxlen int, found func(string, string, bool) error) error {
-	if maxlen < 1 {
-		maxlen = len(v)
-	}
-	if max := len(v); maxlen > max {
+func (v valueString) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
+	var maxlen int
+	if max := len(v); spec.maxlen < 1 || spec.maxlen > max {
 		maxlen = max
+	} else {
+		maxlen = spec.maxlen
 	}
-	return found("", string(v)[:maxlen], true)
+
+	if exp.named {
+		w.WriteString(spec.name)
+		if v == "" {
+			w.WriteString(exp.ifemp)
+			return nil
+		}
+		w.WriteByte('=')
+	}
+	return exp.escape(w, string(v[:maxlen]))
 }
 
 // List returns Value that represents list.
@@ -58,16 +66,40 @@ func List(v ...string) Value {
 type valueList []string
 
 func (v valueList) defined() bool {
-	return len(v) > 0
+	return v != nil && len(v) > 0
 }
 
-func (v valueList) empty() bool {
-	return !v.defined()
-}
+func (v valueList) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
+	var sep string
+	if spec.explode {
+		sep = exp.sep
+	} else {
+		sep = ","
+	}
 
-func (v valueList) expand(_ int, found func(string, string, bool) error) error {
-	for i := 0; i < len(v); i++ {
-		if err := found("", v[i], i == 0); err != nil {
+	var pre string
+	var preifemp string
+	if spec.explode && exp.named {
+		pre = spec.name + "="
+		preifemp = spec.name + exp.ifemp
+	}
+
+	if !spec.explode && exp.named {
+		w.WriteString(spec.name)
+		w.WriteByte('=')
+	}
+
+	for i := range v {
+		if i > 0 {
+			w.WriteString(sep)
+		}
+		if v[i] == "" {
+			w.WriteString(preifemp)
+			continue
+		}
+		w.WriteString(pre)
+
+		if err := exp.escape(w, v[i]); err != nil {
 			return err
 		}
 	}
@@ -86,16 +118,49 @@ func KV(kv ...string) Value {
 type valueKV []string
 
 func (v valueKV) defined() bool {
-	return len(v) > 0
+	return v != nil && len(v) > 0
 }
 
-func (v valueKV) empty() bool {
-	return !v.defined()
-}
+func (v valueKV) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
+	var sep string
+	var kvsep string
+	if spec.explode {
+		sep = exp.sep
+		kvsep = "="
+	} else {
+		sep = ","
+		kvsep = ","
+	}
 
-func (v valueKV) expand(_ int, found func(string, string, bool) error) error {
+	var ifemp string
+	var kescape escapeFunc
+	if spec.explode && exp.named {
+		ifemp = exp.ifemp
+		kescape = escapeLiteral
+	} else {
+		ifemp = ","
+		kescape = exp.escape
+	}
+
+	if !spec.explode && exp.named {
+		w.WriteString(spec.name)
+		w.WriteByte('=')
+	}
+
 	for i := 0; i < len(v); i += 2 {
-		if err := found(v[i], v[i+1], i == 0); err != nil {
+		if i > 0 {
+			w.WriteString(sep)
+		}
+		if err := kescape(w, v[i]); err != nil {
+			return err
+		}
+		if v[i+1] == "" {
+			w.WriteString(ifemp)
+			continue
+		}
+		w.WriteString(kvsep)
+
+		if err := exp.escape(w, v[i+1]); err != nil {
 			return err
 		}
 	}

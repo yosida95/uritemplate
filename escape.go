@@ -64,6 +64,11 @@ func pctEncode(w *bytes.Buffer, r rune) {
 
 type escapeFunc func(*bytes.Buffer, string) error
 
+func escapeLiteral(w *bytes.Buffer, v string) error {
+	w.WriteString(v)
+	return nil
+}
+
 func escapeExceptU(w *bytes.Buffer, v string) error {
 	for i := 0; i < len(v); {
 		r, size := utf8.DecodeRuneInString(v[i:])
