@@ -35,6 +35,7 @@ type expression struct {
 	named  bool
 	ifemp  string
 	escape escapeFunc
+	allow  runeClass
 }
 
 func (e *expression) init() {
@@ -42,38 +43,46 @@ func (e *expression) init() {
 	case parseOpSimple:
 		e.sep = ","
 		e.escape = escapeExceptU
+		e.allow = runeClassU
 	case parseOpPlus:
 		e.sep = ","
 		e.escape = escapeExceptUR
+		e.allow = runeClassUR
 	case parseOpCrosshatch:
 		e.first = "#"
 		e.sep = ","
 		e.escape = escapeExceptUR
+		e.allow = runeClassUR
 	case parseOpDot:
 		e.first = "."
 		e.sep = "."
 		e.escape = escapeExceptU
+		e.allow = runeClassU
 	case parseOpSlash:
 		e.first = "/"
 		e.sep = "/"
 		e.escape = escapeExceptU
+		e.allow = runeClassU
 	case parseOpSemicolon:
 		e.first = ";"
 		e.sep = ";"
 		e.named = true
 		e.escape = escapeExceptU
+		e.allow = runeClassU
 	case parseOpQuestion:
 		e.first = "?"
 		e.sep = "&"
 		e.named = true
 		e.ifemp = "="
 		e.escape = escapeExceptU
+		e.allow = runeClassU
 	case parseOpAmpersand:
 		e.first = "&"
 		e.sep = "&"
 		e.named = true
 		e.ifemp = "="
 		e.escape = escapeExceptU
+		e.allow = runeClassU
 	}
 }
 

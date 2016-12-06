@@ -8,6 +8,7 @@ package uritemplate
 
 import (
 	"bytes"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -46,6 +47,37 @@ var (
 		},
 	}
 )
+
+type runeClass uint8
+
+const (
+	runeClassU runeClass = 1 << iota
+	runeClassR
+	runeClassLast
+
+	runeClassUR = runeClassU | runeClassR
+)
+
+var runeClassNames = []string{
+	"U",
+	"R",
+}
+
+func (rc runeClass) String() string {
+	ret := make([]string, len(runeClassNames))
+	var i int
+	for j := uint(0); ; j++ {
+		test := runeClass(1) << j
+		if test >= runeClassLast {
+			break
+		}
+		if rc&test == test {
+			ret[i] = runeClassNames[j]
+			i++
+		}
+	}
+	return strings.Join(ret[:i], "+")
+}
 
 func pctEncode(w *bytes.Buffer, r rune) {
 	if s := r >> 24 & 0xff; s > 0 {
