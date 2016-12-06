@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func Example() {
+func ExampleTemplate_Expand() {
 	tmpl := MustNew("https://example.com/dictionary/{term:1}/{term}")
 
 	vars := Values{}
@@ -25,6 +25,18 @@ func Example() {
 
 	// Output:
 	// https://example.com/dictionary/c/cat
+}
+
+func ExampleTemplate_Regexp() {
+	tmpl := MustNew("https://example.com/dictionary/{term:1}/{term}")
+	re := tmpl.Regexp()
+
+	fmt.Println(re.MatchString("https://example.com/dictionary/c/cat"))
+	fmt.Println(re.MatchString("https://example.com/dictionary/c/a/cat"))
+
+	// Output:
+	// true
+	// false
 }
 
 var (
