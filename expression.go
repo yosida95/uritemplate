@@ -8,10 +8,13 @@ package uritemplate
 
 import (
 	"bytes"
+	"regexp"
+	"strconv"
 )
 
 type template interface {
 	expand(*bytes.Buffer, Values) error
+	regexp(*bytes.Buffer)
 }
 
 type literals string
@@ -19,6 +22,12 @@ type literals string
 func (l literals) expand(w *bytes.Buffer, _ Values) error {
 	w.Write([]byte(l))
 	return nil
+}
+
+func (l literals) regexp(b *bytes.Buffer) {
+	b.WriteByte('(')
+	b.WriteString(regexp.QuoteMeta(string(l)))
+	b.WriteByte(')')
 }
 
 type varspec struct {
@@ -107,4 +116,58 @@ func (e *expression) expand(w *bytes.Buffer, values Values) error {
 
 	}
 	return nil
+}
+
+func (e *expression) regexp(b *bytes.Buffer) {
+	if e.first != "" {
+		b.WriteString("(?:") // $1
+		b.WriteString(regexp.QuoteMeta(e.first))
+	}
+	b.WriteByte('(') // $2
+	runeClassToRegexp(b, e.allow, e.named || e.vars[0].explode)
+	if len(e.vars) > 1 || e.vars[0].explode {
+		max := len(e.vars) - 1
+		for i := 0; i < len(e.vars); i++ {
+			if e.vars[i].explode {
+				max = -1
+				break
+			}
+		}
+
+		b.WriteString("(?:") // $3
+		b.WriteString(regexp.QuoteMeta(e.sep))
+		runeClassToRegexp(b, e.allow, e.named || max < 0)
+		b.WriteByte(')') // $3
+		if max > 0 {
+			b.WriteString("{0,")
+			b.WriteString(strconv.Itoa(max))
+			b.WriteByte('}')
+		} else {
+			b.WriteByte('*')
+		}
+	}
+	b.WriteByte(')') // $2
+	if e.first != "" {
+		b.WriteByte(')') // $1
+	}
+	b.WriteByte('?')
+}
+
+func runeClassToRegexp(b *bytes.Buffer, class runeClass, named bool) {
+	b.WriteString("(?:(?:[")
+	if class&runeClassR == 0 {
+		b.WriteString(`\x2c`)
+		if named {
+			b.WriteString(`\x3d`)
+		}
+	}
+	if class&runeClassU == runeClassU {
+		b.WriteString(reUnreserved)
+	}
+	if class&runeClassR == runeClassR {
+		b.WriteString(reReserved)
+	}
+	b.WriteString("]")
+	b.WriteString("|%[[:xdigit:]][[:xdigit:]]")
+	b.WriteString(")*)")
 }

@@ -9,6 +9,7 @@ package uritemplate
 import (
 	"bytes"
 	"log"
+	"regexp"
 	"sync"
 )
 
@@ -28,9 +29,10 @@ func (t debugT) Printf(format string, v ...interface{}) {
 type Template struct {
 	exprs []template
 
-	// protects varnames
+	// protects the rest of fields
 	mu       sync.Mutex
 	varnames []string
+	re       *regexp.Regexp
 }
 
 // New parse and construct new Template instance based on the template.
@@ -87,4 +89,25 @@ func (t *Template) Expand(vars Values) (string, error) {
 		}
 	}
 	return w.String(), nil
+}
+
+// Regexp converts the t to regexp and returns compiled *regexp.Regexp.
+func (t *Template) Regexp() *regexp.Regexp {
+	t.mu.Lock()
+	if t.re != nil {
+		t.mu.Unlock()
+		return t.re
+	}
+
+	b := bytes.Buffer{}
+	b.WriteByte('^')
+	for i := range t.exprs {
+		expr := t.exprs[i]
+		expr.regexp(&b)
+	}
+	b.WriteByte('$')
+	t.re = regexp.MustCompile(b.String())
+	t.mu.Unlock()
+
+	return t.re
 }

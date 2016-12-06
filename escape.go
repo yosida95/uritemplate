@@ -33,6 +33,7 @@ var (
 		},
 		LatinOffset: 9,
 	}
+	reReserved = `\x21\x23\x24\x26-\x2c\x2f\x3a\x3b\x3d\x3f\x40\x5b\x5d`
 	// ALPHA      = %x41-5A / %x61-7A
 	// DIGIT      = %x30-39
 	// unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -46,6 +47,7 @@ var (
 			unicode.Range16{Lo: 0x7E, Hi: 0x7E, Stride: 1}, // '~'
 		},
 	}
+	reUnreserved = `\x2d\x2e\x30-\x39\x41-\x5a\x5f\x61-\x7a\x7e`
 )
 
 type runeClass uint8

@@ -200,6 +200,20 @@ func TestTemplateExpand(t *testing.T) {
 	}
 }
 
+func TestTemplateRegexp(t *testing.T) {
+	for _, c := range testTemplateCases {
+		tmpl, err := New(c.raw)
+		if err != nil {
+			t.Errorf("unexpected error on %q: %#v", c.raw, err)
+			continue
+		}
+		re := tmpl.Regexp()
+		if !re.MatchString(c.expected) {
+			t.Errorf("on %q: regexp unexpectedly does not match: %q against %q", c.raw, re, c.expected)
+		}
+	}
+}
+
 func BenchmarkExpressionExpand(b *testing.B) {
 	c := testTemplateCases[0]
 	tmpl, err := New(c.raw)
