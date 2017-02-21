@@ -55,6 +55,7 @@ type runeClass uint8
 const (
 	runeClassU runeClass = 1 << iota
 	runeClassR
+	runeClassPctE
 	runeClassLast
 
 	runeClassUR = runeClassU | runeClassR
@@ -63,22 +64,18 @@ const (
 var runeClassNames = []string{
 	"U",
 	"R",
+	"pct-encoded",
 }
 
 func (rc runeClass) String() string {
-	ret := make([]string, len(runeClassNames))
-	var i int
-	for j := uint(0); ; j++ {
-		test := runeClass(1) << j
-		if test >= runeClassLast {
-			break
+	ret := make([]string, 0, len(runeClassNames))
+	for i, j := 0, runeClass(1); j < runeClassLast; j <<= 1 {
+		if rc&j == j {
+			ret = append(ret, runeClassNames[i])
 		}
-		if rc&test == test {
-			ret[i] = runeClassNames[j]
-			i++
-		}
+		i++
 	}
-	return strings.Join(ret[:i], "+")
+	return strings.Join(ret, "+")
 }
 
 func pctEncode(w *bytes.Buffer, r rune) {
