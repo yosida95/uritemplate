@@ -25,7 +25,11 @@ func TestMatcher(t *testing.T) {
 		}
 
 		if !m.Match(c.expected, nil) {
-			t.Errorf("failed to match %q against %q", c.raw, c.expected)
+			if c.failMatch {
+				t.Logf("failed to match %q against %q", c.raw, c.expected)
+			} else {
+				t.Errorf("failed to match %q against %q", c.raw, c.expected)
+			}
 			t.Log(m.prog.String())
 			continue
 		}
