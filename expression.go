@@ -99,7 +99,7 @@ func (e *expression) expand(w *bytes.Buffer, values Values) error {
 	first := true
 	for _, varspec := range e.vars {
 		value := values.Get(varspec.name)
-		if value == nil || !value.defined() {
+		if !value.Valid() {
 			continue
 		}
 

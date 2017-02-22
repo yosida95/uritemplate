@@ -18,92 +18,153 @@ func (v Values) Set(name string, value Value) {
 
 func (v Values) Get(name string) Value {
 	if v == nil {
-		return nil
+		return Value{}
 	}
 	return v[name] // TODO(yosida95): canonicalize pct-encoded in the name
 }
 
-type Value interface {
-	defined() bool
-	expand(w *bytes.Buffer, spec varspec, e *expression) error
+type ValueType uint8
+
+const (
+	ValueTypeString = iota
+	ValueTypeList
+	ValueTypeKV
+	valueTypeLast
+)
+
+type Value struct {
+	T ValueType
+	V []string
+}
+
+func (v Value) Valid() bool {
+	switch v.T {
+	default:
+		return false
+	case ValueTypeString:
+		return len(v.V) > 0
+	case ValueTypeList:
+		return len(v.V) > 0
+	case ValueTypeKV:
+		return len(v.V) > 0 && len(v.V)%2 == 0
+	}
+}
+
+func (v Value) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
+	switch v.T {
+	case ValueTypeString:
+		val := v.V[0]
+		var maxlen int
+		if max := len(val); spec.maxlen < 1 || spec.maxlen > max {
+			maxlen = max
+		} else {
+			maxlen = spec.maxlen
+		}
+
+		if exp.named {
+			w.WriteString(spec.name)
+			if val == "" {
+				w.WriteString(exp.ifemp)
+				return nil
+			}
+			w.WriteByte('=')
+		}
+		return exp.escape(w, val[:maxlen])
+	case ValueTypeList:
+		var sep string
+		if spec.explode {
+			sep = exp.sep
+		} else {
+			sep = ","
+		}
+
+		var pre string
+		var preifemp string
+		if spec.explode && exp.named {
+			pre = spec.name + "="
+			preifemp = spec.name + exp.ifemp
+		}
+
+		if !spec.explode && exp.named {
+			w.WriteString(spec.name)
+			w.WriteByte('=')
+		}
+		for i := range v.V {
+			val := v.V[i]
+			if i > 0 {
+				w.WriteString(sep)
+			}
+			if val == "" {
+				w.WriteString(preifemp)
+				continue
+			}
+			w.WriteString(pre)
+
+			if err := exp.escape(w, val); err != nil {
+				return err
+			}
+		}
+	case ValueTypeKV:
+		var sep string
+		var kvsep string
+		if spec.explode {
+			sep = exp.sep
+			kvsep = "="
+		} else {
+			sep = ","
+			kvsep = ","
+		}
+
+		var ifemp string
+		var kescape escapeFunc
+		if spec.explode && exp.named {
+			ifemp = exp.ifemp
+			kescape = escapeLiteral
+		} else {
+			ifemp = ","
+			kescape = exp.escape
+		}
+
+		if !spec.explode && exp.named {
+			w.WriteString(spec.name)
+			w.WriteByte('=')
+		}
+
+		for i := 0; i < len(v.V); i += 2 {
+			if i > 0 {
+				w.WriteString(sep)
+			}
+			if err := kescape(w, v.V[i]); err != nil {
+				return err
+			}
+			if v.V[i+1] == "" {
+				w.WriteString(ifemp)
+				continue
+			}
+			w.WriteString(kvsep)
+
+			if err := exp.escape(w, v.V[i+1]); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // String returns Value that represents string.
 func String(v string) Value {
-	return valueString(v)
-}
-
-type valueString string
-
-func (v valueString) defined() bool {
-	return true
-}
-
-func (v valueString) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
-	var maxlen int
-	if max := len(v); spec.maxlen < 1 || spec.maxlen > max {
-		maxlen = max
-	} else {
-		maxlen = spec.maxlen
+	return Value{
+		T: ValueTypeString,
+		V: []string{v},
 	}
-
-	if exp.named {
-		w.WriteString(spec.name)
-		if v == "" {
-			w.WriteString(exp.ifemp)
-			return nil
-		}
-		w.WriteByte('=')
-	}
-	return exp.escape(w, string(v[:maxlen]))
 }
 
 // List returns Value that represents list.
 func List(v ...string) Value {
-	return valueList(v)
-}
-
-type valueList []string
-
-func (v valueList) defined() bool {
-	return v != nil && len(v) > 0
-}
-
-func (v valueList) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
-	var sep string
-	if spec.explode {
-		sep = exp.sep
-	} else {
-		sep = ","
+	return Value{
+		T: ValueTypeList,
+		V: v,
 	}
-
-	var pre string
-	var preifemp string
-	if spec.explode && exp.named {
-		pre = spec.name + "="
-		preifemp = spec.name + exp.ifemp
-	}
-
-	if !spec.explode && exp.named {
-		w.WriteString(spec.name)
-		w.WriteByte('=')
-	}
-
-	for i := range v {
-		if i > 0 {
-			w.WriteString(sep)
-		}
-		if v[i] == "" {
-			w.WriteString(preifemp)
-			continue
-		}
-		w.WriteString(pre)
-
-		if err := exp.escape(w, v[i]); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // KV returns Value that represents associative list.
@@ -112,57 +173,8 @@ func KV(kv ...string) Value {
 	if len(kv)%2 != 0 {
 		panic("uritemplate.go: count of the kv must be even number")
 	}
-	return valueKV(kv)
-}
-
-type valueKV []string
-
-func (v valueKV) defined() bool {
-	return v != nil && len(v) > 0
-}
-
-func (v valueKV) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
-	var sep string
-	var kvsep string
-	if spec.explode {
-		sep = exp.sep
-		kvsep = "="
-	} else {
-		sep = ","
-		kvsep = ","
+	return Value{
+		T: ValueTypeKV,
+		V: kv,
 	}
-
-	var ifemp string
-	var kescape escapeFunc
-	if spec.explode && exp.named {
-		ifemp = exp.ifemp
-		kescape = escapeLiteral
-	} else {
-		ifemp = ","
-		kescape = exp.escape
-	}
-
-	if !spec.explode && exp.named {
-		w.WriteString(spec.name)
-		w.WriteByte('=')
-	}
-
-	for i := 0; i < len(v); i += 2 {
-		if i > 0 {
-			w.WriteString(sep)
-		}
-		if err := kescape(w, v[i]); err != nil {
-			return err
-		}
-		if v[i+1] == "" {
-			w.WriteString(ifemp)
-			continue
-		}
-		w.WriteString(kvsep)
-
-		if err := exp.escape(w, v[i+1]); err != nil {
-			return err
-		}
-	}
-	return nil
 }
