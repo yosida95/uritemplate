@@ -32,6 +32,19 @@ const (
 	valueTypeLast
 )
 
+var valueTypeNames = []string{
+	"String",
+	"List",
+	"KV",
+}
+
+func (vt ValueType) String() string {
+	if vt < valueTypeLast {
+		return valueTypeNames[vt]
+	}
+	return ""
+}
+
 type Value struct {
 	T ValueType
 	V []string
