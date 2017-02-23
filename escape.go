@@ -93,6 +93,50 @@ func pctEncode(w *bytes.Buffer, r rune) {
 	}
 }
 
+func unhex(c byte) byte {
+	switch {
+	case '0' <= c && c <= '9':
+		return c - '0'
+	case 'a' <= c && c <= 'f':
+		return c - 'a' + 10
+	case 'A' <= c && c <= 'F':
+		return c - 'A' + 10
+	}
+	return 0
+}
+
+func pctDecode(s string) string {
+	size := len(s)
+	for i := 0; i < len(s); {
+		switch s[i] {
+		case '%':
+			size -= 2
+			i += 3
+		default:
+			i++
+		}
+	}
+	if size == len(s) {
+		return s
+	}
+
+	buf := make([]byte, size)
+	j := 0
+	for i := 0; i < len(s); {
+		switch c := s[i]; c {
+		case '%':
+			buf[j] = unhex(s[i+1])<<4 | unhex(s[i+2])
+			i += 3
+			j++
+		default:
+			buf[j] = c
+			i++
+			j++
+		}
+	}
+	return string(buf)
+}
+
 type escapeFunc func(*bytes.Buffer, string) error
 
 func escapeLiteral(w *bytes.Buffer, v string) error {
