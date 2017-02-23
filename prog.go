@@ -100,7 +100,8 @@ func dumpProgOp(b *bytes.Buffer, op *progOp) {
 }
 
 type prog struct {
-	op []progOp
+	op     []progOp
+	numCap int
 }
 
 func dumpProg(b *bytes.Buffer, prog *prog, pc int) {

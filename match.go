@@ -33,6 +33,7 @@ type machine struct {
 	list1   threadList
 	list2   threadList
 	matched bool
+	cap     map[string][]int
 
 	input string
 }
@@ -49,7 +50,7 @@ func (m *machine) at(pos int) (rune, int, bool) {
 	return -1, 0, false
 }
 
-func (m *machine) add(list *threadList, pc uint32, pos int, next bool) {
+func (m *machine) add(list *threadList, pc uint32, pos int, next bool, cap map[string][]int) {
 	if i := list.sparse[pc]; i < uint32(len(list.dense)) && list.dense[i].pc == pc {
 		return
 	}
@@ -68,32 +69,43 @@ func (m *machine) add(list *threadList, pc uint32, pos int, next bool) {
 		panic("unhandled opcode")
 	case opRune, opRuneClass, opEnd:
 		e.t = &thread{
-			op: &m.prog.op[pc],
+			op:  &m.prog.op[pc],
+			cap: make(map[string][]int, len(m.cap)),
+		}
+		for k, v := range cap {
+			e.t.cap[k] = make([]int, len(v))
+			copy(e.t.cap[k], v)
 		}
 	case opLineBegin:
 		if pos == 0 {
-			m.add(list, pc+1, pos, next)
+			m.add(list, pc+1, pos, next, cap)
 		}
 	case opLineEnd:
 		if !next {
-			m.add(list, pc+1, pos, next)
+			m.add(list, pc+1, pos, next, cap)
 		}
 	case opCapStart, opCapEnd:
-		m.add(list, pc+1, pos, next)
+		ocap := make(map[string][]int, len(m.cap))
+		for k, v := range cap {
+			ocap[k] = make([]int, len(v))
+			copy(ocap[k], v)
+		}
+		ocap[op.name] = append(ocap[op.name], pos)
+		m.add(list, pc+1, pos, next, ocap)
 	case opSplit:
-		m.add(list, pc+1, pos, next)
-		m.add(list, op.i, pos, next)
+		m.add(list, pc+1, pos, next, cap)
+		m.add(list, op.i, pos, next, cap)
 	case opJmp:
-		m.add(list, op.i, pos, next)
+		m.add(list, op.i, pos, next, cap)
 	case opJmpIfNotDefined:
-		m.add(list, pc+1, pos, next)
-		m.add(list, op.i, pos, next)
+		m.add(list, pc+1, pos, next, cap)
+		m.add(list, op.i, pos, next, cap)
 	case opJmpIfNotFirst:
-		m.add(list, pc+1, pos, next)
-		m.add(list, op.i, pos, next)
+		m.add(list, pc+1, pos, next, cap)
+		m.add(list, op.i, pos, next, cap)
 	case opJmpIfNotEmpty:
-		m.add(list, op.i, pos, next)
-		m.add(list, pc+1, pos, next)
+		m.add(list, op.i, pos, next, cap)
+		m.add(list, pc+1, pos, next, cap)
 	}
 }
 
@@ -111,7 +123,7 @@ func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int, ne
 			panic("unhandled opcode")
 		case opRune:
 			if op.r == r {
-				m.add(nlist, e.pc+1, nextPos, next)
+				m.add(nlist, e.pc+1, nextPos, next, t.cap)
 			}
 		case opRuneClass:
 			ret := false
@@ -125,10 +137,14 @@ func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int, ne
 				ret = ret || unicode.Is(unicode.ASCII_Hex_Digit, r)
 			}
 			if ret {
-				m.add(nlist, e.pc+1, nextPos, next)
+				m.add(nlist, e.pc+1, nextPos, next, t.cap)
 			}
 		case opEnd:
 			m.matched = true
+			for k, v := range t.cap {
+				m.cap[k] = make([]int, len(v))
+				copy(m.cap[k], v)
+			}
 			clist.dense = clist.dense[:0]
 		}
 	}
@@ -144,7 +160,7 @@ func (m *machine) match() bool {
 		}
 		r, width, next := m.at(pos)
 		if !m.matched {
-			m.add(clist, 0, pos, next)
+			m.add(clist, 0, pos, next, m.cap)
 		}
 		m.step(clist, nlist, r, pos, pos+width, next)
 
@@ -173,10 +189,10 @@ func CompileMatcher(tmpl *Template) (*Matcher, error) {
 	return &m, nil
 }
 
-func (match *Matcher) Match(expansion string, vals map[string]Value) bool {
-	n := len(match.prog.op)
+func (matcher *Matcher) Match(expansion string) Values {
+	n := len(matcher.prog.op)
 	m := machine{
-		prog: &match.prog,
+		prog: &matcher.prog,
 		list1: threadList{
 			dense:  make([]threadEntry, 0, n),
 			sparse: make([]uint32, n),
@@ -185,7 +201,26 @@ func (match *Matcher) Match(expansion string, vals map[string]Value) bool {
 			dense:  make([]threadEntry, 0, n),
 			sparse: make([]uint32, n),
 		},
+		cap:   make(map[string][]int, matcher.prog.numCap),
 		input: expansion,
 	}
-	return m.match()
+	if !m.match() {
+		return nil
+	}
+
+	match := make(Values, len(m.cap))
+	for name, indices := range m.cap {
+		v := Value{V: make([]string, len(indices)/2)}
+		for i := range v.V {
+			v.V[i] = pctDecode(expansion[indices[2*i]:indices[2*i+1]])
+		}
+		if len(v.V) == 1 {
+			v.T = ValueTypeString
+		} else {
+			v.T = ValueTypeList
+		}
+		match[name] = v
+	}
+
+	return match
 }

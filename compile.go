@@ -7,6 +7,7 @@
 package uritemplate
 
 import (
+	"strconv"
 	"unicode/utf8"
 )
 
@@ -118,13 +119,21 @@ func (c *compiler) sizeVarspecValue(spec varspec, expr *expression) uint32 {
 }
 
 func (c *compiler) compileVarspecValue(spec varspec, expr *expression) {
-	c.opWithName(opCapStart, spec.name)
+	var specname string
+	if !spec.explode && spec.maxlen > 0 {
+		specname = spec.name + ":" + strconv.Itoa(spec.maxlen)
+	} else {
+		specname = spec.name
+	}
+
+	c.prog.numCap++
+	c.opWithName(opCapStart, specname)
 	if !spec.explode && spec.maxlen > 0 {
 		c.compileRuneClass(expr.allow, spec.maxlen)
 	} else {
 		c.compileRuneClassInfinite(expr.allow)
 	}
-	c.opWithName(opCapEnd, spec.name)
+	c.opWithName(opCapEnd, specname)
 }
 
 func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
