@@ -13,13 +13,18 @@ import (
 
 // threadList implements https://research.swtch.com/sparse.
 type threadList struct {
-	dense  []thread
+	dense  []threadEntry
 	sparse []uint32
 }
 
-type thread struct {
-	op *progOp
+type threadEntry struct {
 	pc uint32
+	t  *thread
+}
+
+type thread struct {
+	op  *progOp
+	cap map[string][]int
 }
 
 type machine struct {
@@ -32,22 +37,19 @@ type machine struct {
 	input string
 }
 
-func (m *machine) at(pos int) (rune, int) {
-	if pos < len(m.input) {
-		r := m.input[pos]
-		if r < utf8.RuneSelf {
-			return rune(r), 1
+func (m *machine) at(pos int) (rune, int, bool) {
+	if l := len(m.input); pos < l {
+		c := m.input[pos]
+		if c < utf8.RuneSelf {
+			return rune(c), 1, pos+1 < l
 		}
-		return utf8.DecodeRuneInString(m.input[pos:])
+		r, size := utf8.DecodeRuneInString(m.input[pos:])
+		return r, size, pos+size < l
 	}
-	return -1, 0
+	return -1, 0, false
 }
 
-func (m *machine) clear(list *threadList) {
-	list.dense = list.dense[:0]
-}
-
-func (m *machine) add(list *threadList, pc uint32) {
+func (m *machine) add(list *threadList, pc uint32, pos int, next bool) {
 	if i := list.sparse[pc]; i < uint32(len(list.dense)) && list.dense[i].pc == pc {
 		return
 	}
@@ -56,22 +58,60 @@ func (m *machine) add(list *threadList, pc uint32) {
 	list.dense = list.dense[:n+1]
 	list.sparse[pc] = uint32(n)
 
-	t := &list.dense[n]
-	t.pc = pc
-	t.op = &m.prog.op[pc]
+	e := &list.dense[n]
+	e.pc = pc
+	e.t = nil
+
+	op := &m.prog.op[pc]
+	switch op.code {
+	default:
+		panic("unhandled opcode")
+	case opRune, opRuneClass, opEnd:
+		e.t = &thread{
+			op: &m.prog.op[pc],
+		}
+	case opLineBegin:
+		if pos == 0 {
+			m.add(list, pc+1, pos, next)
+		}
+	case opLineEnd:
+		if !next {
+			m.add(list, pc+1, pos, next)
+		}
+	case opCapStart, opCapEnd:
+		m.add(list, pc+1, pos, next)
+	case opSplit:
+		m.add(list, pc+1, pos, next)
+		m.add(list, op.i, pos, next)
+	case opJmp:
+		m.add(list, op.i, pos, next)
+	case opJmpIfNotDefined:
+		m.add(list, pc+1, pos, next)
+		m.add(list, op.i, pos, next)
+	case opJmpIfNotFirst:
+		m.add(list, pc+1, pos, next)
+		m.add(list, op.i, pos, next)
+	case opJmpIfNotEmpty:
+		m.add(list, op.i, pos, next)
+		m.add(list, pc+1, pos, next)
+	}
 }
 
-func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int) {
+func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int, nextPos int, next bool) {
 	for i := 0; i < len(clist.dense); i++ {
-		t := clist.dense[i]
-		op := t.op
+		e := clist.dense[i]
+		if e.t == nil {
+			continue
+		}
 
+		t := e.t
+		op := t.op
 		switch op.code {
 		default:
 			panic("unhandled opcode")
 		case opRune:
 			if op.r == r {
-				m.add(nlist, t.pc+1)
+				m.add(nlist, e.pc+1, nextPos, next)
 			}
 		case opRuneClass:
 			ret := false
@@ -85,48 +125,29 @@ func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int) {
 				ret = ret || unicode.Is(unicode.ASCII_Hex_Digit, r)
 			}
 			if ret {
-				m.add(nlist, t.pc+1)
+				m.add(nlist, e.pc+1, nextPos, next)
 			}
-		case opLineBegin:
-			if pos == 0 {
-				m.add(clist, t.pc+1)
-			}
-		case opLineEnd:
-			if r == -1 {
-				m.add(clist, t.pc+1)
-			}
-		case opCapStart:
-			m.add(clist, t.pc+1)
-		case opCapEnd:
-			m.add(clist, t.pc+1)
-		case opSplit:
-			m.add(clist, t.pc+1)
-			m.add(clist, op.i)
-		case opJmp, opJmpIfNotDefined, opJmpIfNotEmpty, opJmpIfNotFirst:
-			m.add(clist, t.pc+1)
-			m.add(clist, op.i)
 		case opEnd:
 			m.matched = true
+			clist.dense = clist.dense[:0]
 		}
 	}
-	m.clear(clist)
+	clist.dense = clist.dense[:0]
 }
 
 func (m *machine) match() bool {
 	pos := 0
 	clist, nlist := &m.list1, &m.list2
 	for {
-		if len(clist.dense) == 0 {
-			if m.matched {
-				break
-			}
+		if len(clist.dense) == 0 && m.matched {
+			break
 		}
+		r, width, next := m.at(pos)
 		if !m.matched {
-			m.add(clist, 0)
+			m.add(clist, 0, pos, next)
 		}
+		m.step(clist, nlist, r, pos, pos+width, next)
 
-		r, width := m.at(pos)
-		m.step(clist, nlist, r, pos)
 		if width < 1 {
 			break
 		}
@@ -144,7 +165,6 @@ type Matcher struct {
 func CompileMatcher(tmpl *Template) (*Matcher, error) {
 	c := compiler{}
 	c.init()
-
 	c.compile(tmpl)
 
 	m := Matcher{
@@ -158,11 +178,11 @@ func (match *Matcher) Match(expansion string, vals map[string]Value) bool {
 	m := machine{
 		prog: &match.prog,
 		list1: threadList{
-			dense:  make([]thread, 0, n),
+			dense:  make([]threadEntry, 0, n),
 			sparse: make([]uint32, n),
 		},
 		list2: threadList{
-			dense:  make([]thread, 0, n),
+			dense:  make([]threadEntry, 0, n),
 			sparse: make([]uint32, n),
 		},
 		input: expansion,
