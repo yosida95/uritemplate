@@ -7,12 +7,37 @@
 package uritemplate
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-func TestMatcher(t *testing.T) {
+func ExampleTemplate_Match() {
+	tmpl := MustNew("https://example.com/dictionary/{term:1}/{term}")
+	match := tmpl.Match("https://example.com/dictionary/c/cat")
+	if match == nil {
+		fmt.Println("not matched")
+		return
+	}
+
+	if v := match["term:1"]; v.Valid() {
+		if v.T == ValueTypeString {
+			fmt.Printf("term:1 is %q\n", v.V[0])
+		}
+	}
+	if v := match["term"]; v.Valid() {
+		if v.T == ValueTypeString {
+			fmt.Printf("term is %q\n", v.V[0])
+		}
+	}
+
+	// Output:
+	// term:1 is "c"
+	// term is "cat"
+}
+
+func TestTemplate_Match(t *testing.T) {
 	for _, c := range testTemplateCases {
 		if c.failMatch {
 			continue
@@ -23,16 +48,11 @@ func TestMatcher(t *testing.T) {
 			t.Errorf("unexpected error on %q: %#v", c.raw, err)
 			continue
 		}
-		m, err := CompileMatcher(tmpl)
-		if err != nil {
-			t.Errorf("unexpected error on %q: %#v", c.raw, err)
-			return
-		}
 
-		match := m.Match(c.expected)
+		match := tmpl.Match(c.expected)
 		if match == nil {
 			t.Errorf("failed to match %q against %q", c.raw, c.expected)
-			t.Log(m.prog.String())
+			t.Log(tmpl.prog.String())
 			continue
 		}
 		for name, actual := range match {

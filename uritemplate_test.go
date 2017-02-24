@@ -64,7 +64,7 @@ var (
 		{"O{empty}X", "OX", false},
 		{"O{undef}X", "OX", false},
 		{"{x,y}", "1024,768", false},
-		{"{x,hello,y}", "1024,Hello%20World%21,768", false},
+		{"{x,hello,y}", "1024,Hello%20World%21,768", true},
 		{"?{x,empty}", "?1024,", false},
 		{"?{x,undef}", "?1024", false},
 		{"?{undef,y}", "?768", true},

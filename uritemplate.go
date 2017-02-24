@@ -33,6 +33,7 @@ type Template struct {
 	mu       sync.Mutex
 	varnames []string
 	re       *regexp.Regexp
+	prog     *prog
 }
 
 // New parse and construct new Template instance based on the template.

@@ -7,27 +7,12 @@
 package uritemplate
 
 import (
+	"bytes"
 	"unicode"
 	"unicode/utf8"
 )
 
-// threadList implements https://research.swtch.com/sparse.
-type threadList struct {
-	dense  []threadEntry
-	sparse []uint32
-}
-
-type threadEntry struct {
-	pc uint32
-	t  *thread
-}
-
-type thread struct {
-	op  *progOp
-	cap map[string][]int
-}
-
-type machine struct {
+type matcher struct {
 	prog *prog
 
 	list1   threadList
@@ -38,7 +23,7 @@ type machine struct {
 	input string
 }
 
-func (m *machine) at(pos int) (rune, int, bool) {
+func (m *matcher) at(pos int) (rune, int, bool) {
 	if l := len(m.input); pos < l {
 		c := m.input[pos]
 		if c < utf8.RuneSelf {
@@ -50,7 +35,7 @@ func (m *machine) at(pos int) (rune, int, bool) {
 	return -1, 0, false
 }
 
-func (m *machine) add(list *threadList, pc uint32, pos int, next bool, cap map[string][]int) {
+func (m *matcher) add(list *threadList, pc uint32, pos int, next bool, cap map[string][]int) {
 	if i := list.sparse[pc]; i < uint32(len(list.dense)) && list.dense[i].pc == pc {
 		return
 	}
@@ -109,9 +94,15 @@ func (m *machine) add(list *threadList, pc uint32, pos int, next bool, cap map[s
 	}
 }
 
-func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int, nextPos int, next bool) {
+func (m *matcher) step(clist *threadList, nlist *threadList, r rune, pos int, nextPos int, next bool) {
+	debug.Printf("===== %q =====", string(r))
 	for i := 0; i < len(clist.dense); i++ {
 		e := clist.dense[i]
+		if debug == true {
+			var buf bytes.Buffer
+			dumpProg(&buf, m.prog, e.pc)
+			debug.Printf("\n%s", buf.String())
+		}
 		if e.t == nil {
 			continue
 		}
@@ -151,7 +142,7 @@ func (m *machine) step(clist *threadList, nlist *threadList, r rune, pos int, ne
 	clist.dense = clist.dense[:0]
 }
 
-func (m *machine) match() bool {
+func (m *matcher) match() bool {
 	pos := 0
 	clist, nlist := &m.list1, &m.list2
 	for {
@@ -174,25 +165,20 @@ func (m *machine) match() bool {
 	return m.matched
 }
 
-type Matcher struct {
-	prog prog
-}
-
-func CompileMatcher(tmpl *Template) (*Matcher, error) {
-	c := compiler{}
-	c.init()
-	c.compile(tmpl)
-
-	m := Matcher{
-		prog: *c.prog,
+func (tmpl *Template) Match(expansion string) Values {
+	tmpl.mu.Lock()
+	if tmpl.prog == nil {
+		c := compiler{}
+		c.init()
+		c.compile(tmpl)
+		tmpl.prog = c.prog
 	}
-	return &m, nil
-}
+	prog := tmpl.prog
+	tmpl.mu.Unlock()
 
-func (matcher *Matcher) Match(expansion string) Values {
-	n := len(matcher.prog.op)
-	m := machine{
-		prog: &matcher.prog,
+	n := len(prog.op)
+	m := matcher{
+		prog: prog,
 		list1: threadList{
 			dense:  make([]threadEntry, 0, n),
 			sparse: make([]uint32, n),
@@ -201,7 +187,7 @@ func (matcher *Matcher) Match(expansion string) Values {
 			dense:  make([]threadEntry, 0, n),
 			sparse: make([]uint32, n),
 		},
-		cap:   make(map[string][]int, matcher.prog.numCap),
+		cap:   make(map[string][]int, prog.numCap),
 		input: expansion,
 	}
 	if !m.match() {
@@ -221,6 +207,5 @@ func (matcher *Matcher) Match(expansion string) Values {
 		}
 		match[name] = v
 	}
-
 	return match
 }
