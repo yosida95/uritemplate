@@ -21,16 +21,8 @@ func ExampleTemplate_Match() {
 		return
 	}
 
-	if v := match["term:1"]; v.Valid() {
-		if v.T == ValueTypeString {
-			fmt.Printf("term:1 is %q\n", v.V[0])
-		}
-	}
-	if v := match["term"]; v.Valid() {
-		if v.T == ValueTypeString {
-			fmt.Printf("term is %q\n", v.V[0])
-		}
-	}
+	fmt.Printf("term:1 is %q\n", match.Get("term:1").String())
+	fmt.Printf("term is %q\n", match.Get("term").String())
 
 	// Output:
 	// term:1 is "c"

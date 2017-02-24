@@ -50,6 +50,27 @@ type Value struct {
 	V []string
 }
 
+func (v Value) String() string {
+	if v.Valid() && v.T == ValueTypeString {
+		return v.V[0]
+	}
+	return ""
+}
+
+func (v Value) List() []string {
+	if v.Valid() && v.T == ValueTypeList {
+		return v.V
+	}
+	return nil
+}
+
+func (v Value) KV() []string {
+	if v.Valid() && v.T == ValueTypeKV {
+		return v.V
+	}
+	return nil
+}
+
 func (v Value) Valid() bool {
 	switch v.T {
 	default:
