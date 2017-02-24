@@ -93,7 +93,7 @@ func (c *compiler) compileRuneClass(rc runeClass, maxlen int) {
 }
 
 func (c *compiler) sizeRuneClassInfinite(rc runeClass) uint32 {
-	return 7
+	return 8
 }
 
 func (c *compiler) compileRuneClassInfinite(rc runeClass) {
@@ -104,7 +104,8 @@ func (c *compiler) compileRuneClassInfinite(rc runeClass) {
 	c.opWithRune(opRune, '%')                     // pct-encoded
 	c.opWithRuneClass(opRuneClass, runeClassPctE) //
 	c.opWithRuneClass(opRuneClass, runeClassPctE) //
-	c.opWithAddr(opSplit, addr)                   // loop
+	c.opWithAddrDelta(opSplit, 2)                 // loop
+	c.opWithAddr(opJmp, addr)                     //
 }
 
 func (c *compiler) sizeVarspecValue(spec varspec, expr *expression) uint32 {
@@ -144,7 +145,7 @@ func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
 		sep = ","
 	}
 
-	size := 4 + c.sizeString(expr.ifemp) + c.sizeVarspecValue(spec, expr) + c.sizeString(sep)
+	size := 5 + c.sizeString(expr.ifemp) + c.sizeVarspecValue(spec, expr) + c.sizeString(sep)
 	if expr.named {
 		size += c.sizeString(spec.name) + 1
 		size += c.sizeString("=")
@@ -180,11 +181,11 @@ func (c *compiler) compileVarspec(spec varspec, expr *expression) {
 	c.opWithAddrDelta(opJmp, 1+c.sizeVarspecValue(spec, expr)+sizePreval)  // skip spec
 	c.compileString(preval)                                                // preval
 	c.compileVarspecValue(spec, expr)                                      // spec
-	c.opWithAddrDelta(opSplit, 2+c.sizeString(sep))                        // break loop
+	c.opWithAddrDelta(opSplit, 2)                                          //
+	c.opWithAddrDelta(opJmp, 2+c.sizeString(sep))                          // break loop
 	c.compileString(sep)                                                   // sep
-
-	size := c.sizeVarspec(spec, expr)
-	c.opWithAddrDelta(opJmp, -size+offset+1) // jmp to beginning the loop
+	size := c.sizeVarspec(spec, expr)                                      // continue
+	c.opWithAddrDelta(opJmp, -size+offset+1)                               //
 }
 
 func (c *compiler) sizeExpression(expr *expression) uint32 {
