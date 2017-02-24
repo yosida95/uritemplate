@@ -104,12 +104,12 @@ type prog struct {
 	numCap int
 }
 
-func dumpProg(b *bytes.Buffer, prog *prog, pc int) {
+func dumpProg(b *bytes.Buffer, prog *prog, pc uint32) {
 	for i := range prog.op {
 		op := prog.op[i]
 
 		pos := strconv.Itoa(i)
-		if i == pc {
+		if uint32(i) == pc {
 			pos = "*" + pos
 		}
 		b.WriteString("    "[len(pos):])
