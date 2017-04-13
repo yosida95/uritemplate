@@ -27,6 +27,7 @@ func (t debugT) Printf(format string, v ...interface{}) {
 
 // Template represents an URI Template.
 type Template struct {
+	raw   string
 	exprs []template
 
 	// protects the rest of fields
@@ -49,6 +50,11 @@ func MustNew(template string) *Template {
 		panic(err)
 	}
 	return ret
+}
+
+// Raw returns a raw URI template passed to New in string
+func (t *Template) Raw() string {
+	return t.raw
 }
 
 // Varnames returns variable names used in the t

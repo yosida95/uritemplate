@@ -310,6 +310,7 @@ Loop:
 func (p *parser) parseURITemplate() (*Template, error) {
 	debug.Printf("parseURITemplate: %q", p.r)
 	tmpl := Template{
+		raw:   p.r,
 		exprs: []template{},
 	}
 	for {
