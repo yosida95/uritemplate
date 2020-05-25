@@ -25,7 +25,7 @@ func (l literals) expand(b *strings.Builder, _ Values) error {
 }
 
 func (l literals) regexp(b *strings.Builder) {
-	b.WriteByte('(')
+	b.WriteString("(?:")
 	b.WriteString(regexp.QuoteMeta(string(l)))
 	b.WriteByte(')')
 }
