@@ -98,7 +98,7 @@ func (m *matcher) step(clist *threadList, nlist *threadList, r rune, pos int, ne
 	debug.Printf("===== %q =====", string(r))
 	for i := 0; i < len(clist.dense); i++ {
 		e := clist.dense[i]
-		if debug == true {
+		if debug {
 			var buf bytes.Buffer
 			dumpProg(&buf, m.prog, e.pc)
 			debug.Printf("\n%s", buf.String())

@@ -188,22 +188,6 @@ func (c *compiler) compileVarspec(spec varspec, expr *expression) {
 	c.opWithAddrDelta(opJmp, -size+offset+1)                               //
 }
 
-func (c *compiler) sizeExpression(expr *expression) uint32 {
-	if len(expr.vars) < 1 {
-		return 0
-	}
-
-	// first
-	size := 1 + c.sizeString(expr.first) + c.sizeVarspec(expr.vars[0], expr)
-	// subsequent
-	for i := 1; i < len(expr.vars); i++ {
-		spec := expr.vars[i]
-		size += 3 + c.sizeString(expr.first) + c.sizeString(expr.sep) +
-			c.sizeVarspec(spec, expr)
-	}
-	return size
-}
-
 func (c *compiler) compileExpression(expr *expression) {
 	if len(expr.vars) < 1 {
 		return
