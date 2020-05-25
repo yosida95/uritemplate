@@ -6,9 +6,7 @@
 
 package uritemplate
 
-import (
-	"bytes"
-)
+import "strings"
 
 type Values map[string]Value
 
@@ -84,7 +82,7 @@ func (v Value) Valid() bool {
 	}
 }
 
-func (v Value) expand(w *bytes.Buffer, spec varspec, exp *expression) error {
+func (v Value) expand(w *strings.Builder, spec varspec, exp *expression) error {
 	switch v.T {
 	case ValueTypeString:
 		val := v.V[0]
