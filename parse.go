@@ -136,7 +136,7 @@ func (p *parser) consumeMaxLength() (int, error) {
 
 		maxlen *= 10
 		maxlen += int(c - '0')
-		if maxlen >= 1000 || len(p.r) == 0 {
+		if maxlen >= 9999 || len(p.r) == 0 {
 			break
 		}
 	}
