@@ -7,24 +7,24 @@
 package uritemplate
 
 import (
-	"bytes"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 type template interface {
-	expand(*bytes.Buffer, Values) error
-	regexp(*bytes.Buffer)
+	expand(*strings.Builder, Values) error
+	regexp(*strings.Builder)
 }
 
 type literals string
 
-func (l literals) expand(w *bytes.Buffer, _ Values) error {
-	w.Write([]byte(l))
+func (l literals) expand(b *strings.Builder, _ Values) error {
+	b.WriteString(string(l))
 	return nil
 }
 
-func (l literals) regexp(b *bytes.Buffer) {
+func (l literals) regexp(b *strings.Builder) {
 	b.WriteByte('(')
 	b.WriteString(regexp.QuoteMeta(string(l)))
 	b.WriteByte(')')
@@ -95,7 +95,7 @@ func (e *expression) init() {
 	}
 }
 
-func (e *expression) expand(w *bytes.Buffer, values Values) error {
+func (e *expression) expand(w *strings.Builder, values Values) error {
 	first := true
 	for _, varspec := range e.vars {
 		value := values.Get(varspec.name)
@@ -118,7 +118,7 @@ func (e *expression) expand(w *bytes.Buffer, values Values) error {
 	return nil
 }
 
-func (e *expression) regexp(b *bytes.Buffer) {
+func (e *expression) regexp(b *strings.Builder) {
 	if e.first != "" {
 		b.WriteString("(?:") // $1
 		b.WriteString(regexp.QuoteMeta(e.first))
@@ -153,7 +153,7 @@ func (e *expression) regexp(b *bytes.Buffer) {
 	b.WriteByte('?')
 }
 
-func runeClassToRegexp(b *bytes.Buffer, class runeClass, named bool) {
+func runeClassToRegexp(b *strings.Builder, class runeClass, named bool) {
 	b.WriteString("(?:(?:[")
 	if class&runeClassR == 0 {
 		b.WriteString(`\x2c`)

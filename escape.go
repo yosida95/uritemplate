@@ -7,7 +7,6 @@
 package uritemplate
 
 import (
-	"bytes"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -78,7 +77,7 @@ func (rc runeClass) String() string {
 	return strings.Join(ret, "+")
 }
 
-func pctEncode(w *bytes.Buffer, r rune) {
+func pctEncode(w *strings.Builder, r rune) {
 	if s := r >> 24 & 0xff; s > 0 {
 		w.Write([]byte{'%', hex[s/16], hex[s%16]})
 	}
@@ -137,14 +136,14 @@ func pctDecode(s string) string {
 	return string(buf)
 }
 
-type escapeFunc func(*bytes.Buffer, string) error
+type escapeFunc func(*strings.Builder, string) error
 
-func escapeLiteral(w *bytes.Buffer, v string) error {
+func escapeLiteral(w *strings.Builder, v string) error {
 	w.WriteString(v)
 	return nil
 }
 
-func escapeExceptU(w *bytes.Buffer, v string) error {
+func escapeExceptU(w *strings.Builder, v string) error {
 	for i := 0; i < len(v); {
 		r, size := utf8.DecodeRuneInString(v[i:])
 		if r == utf8.RuneError {
@@ -160,7 +159,7 @@ func escapeExceptU(w *bytes.Buffer, v string) error {
 	return nil
 }
 
-func escapeExceptUR(w *bytes.Buffer, v string) error {
+func escapeExceptUR(w *strings.Builder, v string) error {
 	for i := 0; i < len(v); {
 		r, size := utf8.DecodeRuneInString(v[i:])
 		if r == utf8.RuneError {

@@ -7,9 +7,9 @@
 package uritemplate
 
 import (
-	"bytes"
 	"log"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -88,7 +88,7 @@ func (t *Template) Varnames() []string {
 
 // Expand returns an URI reference corresponding t and vars.
 func (t *Template) Expand(vars Values) (string, error) {
-	w := bytes.Buffer{}
+	var w strings.Builder
 	for i := range t.exprs {
 		expr := t.exprs[i]
 		if err := expr.expand(&w, vars); err != nil {
@@ -106,7 +106,7 @@ func (t *Template) Regexp() *regexp.Regexp {
 		return t.re
 	}
 
-	b := bytes.Buffer{}
+	var b strings.Builder
 	b.WriteByte('^')
 	for i := range t.exprs {
 		expr := t.exprs[i]
