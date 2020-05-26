@@ -41,7 +41,7 @@ func Equals(t1 *Template, t2 *Template, flags CompareFlags) bool {
 				if flags&CompareVarname == CompareVarname && v1.name != v2.name {
 					return false
 				}
-				if v1.maxlen != v1.maxlen || v1.explode != v2.explode {
+				if v1.maxlen != v2.maxlen || v1.explode != v2.explode {
 					return false
 				}
 			}
