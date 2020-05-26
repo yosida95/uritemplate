@@ -20,15 +20,15 @@ var (
 	//            /  "*" / "+" / "," / ";" / "="
 	rangeReserved = &unicode.RangeTable{
 		R16: []unicode.Range16{
-			unicode.Range16{Lo: 0x21, Hi: 0x21, Stride: 1}, // '!'
-			unicode.Range16{Lo: 0x23, Hi: 0x24, Stride: 1}, // '#' - '$'
-			unicode.Range16{Lo: 0x26, Hi: 0x2C, Stride: 1}, // '&' - ','
-			unicode.Range16{Lo: 0x2F, Hi: 0x2F, Stride: 1}, // '/'
-			unicode.Range16{Lo: 0x3A, Hi: 0x3B, Stride: 1}, // ':' - ';'
-			unicode.Range16{Lo: 0x3D, Hi: 0x3D, Stride: 1}, // '='
-			unicode.Range16{Lo: 0x3F, Hi: 0x40, Stride: 1}, // '?' - '@'
-			unicode.Range16{Lo: 0x5B, Hi: 0x5B, Stride: 1}, // '['
-			unicode.Range16{Lo: 0x5D, Hi: 0x5D, Stride: 1}, // ']'
+			{Lo: 0x21, Hi: 0x21, Stride: 1}, // '!'
+			{Lo: 0x23, Hi: 0x24, Stride: 1}, // '#' - '$'
+			{Lo: 0x26, Hi: 0x2C, Stride: 1}, // '&' - ','
+			{Lo: 0x2F, Hi: 0x2F, Stride: 1}, // '/'
+			{Lo: 0x3A, Hi: 0x3B, Stride: 1}, // ':' - ';'
+			{Lo: 0x3D, Hi: 0x3D, Stride: 1}, // '='
+			{Lo: 0x3F, Hi: 0x40, Stride: 1}, // '?' - '@'
+			{Lo: 0x5B, Hi: 0x5B, Stride: 1}, // '['
+			{Lo: 0x5D, Hi: 0x5D, Stride: 1}, // ']'
 		},
 		LatinOffset: 9,
 	}
@@ -38,12 +38,12 @@ var (
 	// unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
 	rangeUnreserved = &unicode.RangeTable{
 		R16: []unicode.Range16{
-			unicode.Range16{Lo: 0x2D, Hi: 0x2E, Stride: 1}, // '-' - '.'
-			unicode.Range16{Lo: 0x30, Hi: 0x39, Stride: 1}, // '0' - '9'
-			unicode.Range16{Lo: 0x41, Hi: 0x5A, Stride: 1}, // 'A' - 'Z'
-			unicode.Range16{Lo: 0x5F, Hi: 0x5F, Stride: 1}, // '_'
-			unicode.Range16{Lo: 0x61, Hi: 0x7A, Stride: 1}, // 'a' - 'z'
-			unicode.Range16{Lo: 0x7E, Hi: 0x7E, Stride: 1}, // '~'
+			{Lo: 0x2D, Hi: 0x2E, Stride: 1}, // '-' - '.'
+			{Lo: 0x30, Hi: 0x39, Stride: 1}, // '0' - '9'
+			{Lo: 0x41, Hi: 0x5A, Stride: 1}, // 'A' - 'Z'
+			{Lo: 0x5F, Hi: 0x5F, Stride: 1}, // '_'
+			{Lo: 0x61, Hi: 0x7A, Stride: 1}, // 'a' - 'z'
+			{Lo: 0x7E, Hi: 0x7E, Stride: 1}, // '~'
 		},
 	}
 	reUnreserved = `\x2d\x2e\x30-\x39\x41-\x5a\x5f\x61-\x7a\x7e`

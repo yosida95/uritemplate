@@ -25,7 +25,7 @@ func (t debugT) Printf(format string, v ...interface{}) {
 	}
 }
 
-// Template represents an URI Template.
+// Template represents a URI Template.
 type Template struct {
 	raw   string
 	exprs []template
@@ -37,7 +37,7 @@ type Template struct {
 	prog     *prog
 }
 
-// New parse and construct new Template instance based on the template.
+// New parses and constructs a new Template instance based on the template.
 // New returns an error if the template cannot be recognized.
 func New(template string) (*Template, error) {
 	return (&parser{r: template}).parseURITemplate()
@@ -52,16 +52,16 @@ func MustNew(template string) *Template {
 	return ret
 }
 
-// Raw returns a raw URI template passed to New in string
+// Raw returns a raw URI template passed to New in string.
 func (t *Template) Raw() string {
 	return t.raw
 }
 
-// Varnames returns variable names used in the t
+// Varnames returns variable names used in the template.
 func (t *Template) Varnames() []string {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	if t.varnames != nil {
-		t.mu.Unlock()
 		return t.varnames
 	}
 
@@ -72,8 +72,7 @@ func (t *Template) Varnames() []string {
 		if !ok {
 			continue
 		}
-		for i := range expr.vars {
-			spec := expr.vars[i]
+		for _, spec := range expr.vars {
 			if _, ok := reg[spec.name]; ok {
 				continue
 			}
@@ -81,12 +80,11 @@ func (t *Template) Varnames() []string {
 			t.varnames = append(t.varnames, spec.name)
 		}
 	}
-	t.mu.Unlock()
 
 	return t.varnames
 }
 
-// Expand returns an URI reference corresponding t and vars.
+// Expand returns a URI reference corresponding to the template expanded using the passed variables.
 func (t *Template) Expand(vars Values) (string, error) {
 	var w strings.Builder
 	for i := range t.exprs {
@@ -98,23 +96,21 @@ func (t *Template) Expand(vars Values) (string, error) {
 	return w.String(), nil
 }
 
-// Regexp converts the t to regexp and returns compiled *regexp.Regexp.
+// Regexp converts the template to regexp and returns compiled *regexp.Regexp.
 func (t *Template) Regexp() *regexp.Regexp {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	if t.re != nil {
-		t.mu.Unlock()
 		return t.re
 	}
 
 	var b strings.Builder
 	b.WriteByte('^')
-	for i := range t.exprs {
-		expr := t.exprs[i]
+	for _, expr := range t.exprs {
 		expr.regexp(&b)
 	}
 	b.WriteByte('$')
 	t.re = regexp.MustCompile(b.String())
-	t.mu.Unlock()
 
 	return t.re
 }
