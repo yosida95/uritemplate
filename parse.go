@@ -11,8 +11,10 @@ import (
 	"unicode/utf8"
 )
 
+type parseOp int
+
 const (
-	parseOpSimple = iota
+	parseOpSimple parseOp = iota
 	parseOpPlus
 	parseOpCrosshatch
 	parseOpDot
@@ -22,8 +24,10 @@ const (
 	parseOpAmpersand
 )
 
+type parseState int
+
 const (
-	parseStateDefault = iota
+	parseStateDefault parseState = iota
 	parseStateHexDigit1
 	parseStateHexDigit2
 )
@@ -87,7 +91,7 @@ func (p *parser) dropN(n int) {
 	p.r = p.r[n:]
 }
 
-func (p *parser) consumeOp() (int, error) {
+func (p *parser) consumeOp() (parseOp, error) {
 	debug.Printf("consumeOp: %q", p.r)
 	switch p.r[0] {
 	case '+':
@@ -145,7 +149,7 @@ func (p *parser) consumeMaxLength() (int, error) {
 
 func (p *parser) consumeVarspec() (varspec, error) {
 	debug.Printf("consumeVarspec: %q", p.r)
-	var state int
+	var state parseState
 	var ret varspec
 	var err error
 	for i := 0; i < len(p.r); {
