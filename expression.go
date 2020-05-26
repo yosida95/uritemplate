@@ -38,7 +38,7 @@ type varspec struct {
 
 type expression struct {
 	vars   []varspec
-	op     int
+	op     parseOp
 	first  string
 	sep    string
 	named  bool
