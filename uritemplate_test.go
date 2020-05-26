@@ -236,6 +236,42 @@ func BenchmarkExpressionExpand(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tmpl.Expand(testExpressionExpandVarMap)
+		if _, err := tmpl.Expand(testExpressionExpandVarMap); err != nil {
+			b.Errorf("got unexpected error; %#v", err)
+			return
+		}
+	}
+}
+
+func BenchmarkMatch(b *testing.B) {
+	tmpl := MustNew("https://{host}/users{/user}{/media}")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if nil == tmpl.Match("https://example.com/users/kevin/pics") {
+			b.Errorf("Must match")
+			return
+		}
+	}
+}
+
+func BenchmarkRegexpMatch(b *testing.B) {
+	tmpl := MustNew("https://{host}/users{/user}{/media}")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if !tmpl.Regexp().MatchString("https://example.com/users/kevin/pics") {
+			b.Errorf("Must match")
+			return
+		}
+	}
+}
+
+func BenchmarkRegexpFindAll(b *testing.B) {
+	tmpl := MustNew("https://{host}/users{/user}{/media}")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if tmpl.Regexp().FindStringSubmatch("https://example.com/users/kevin/pics") == nil {
+			b.Errorf("Must match")
+			return
+		}
 	}
 }
