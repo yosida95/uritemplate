@@ -15,7 +15,7 @@ Installation
 
 .. code-block:: sh
 
-   $ go get -u github.com/yosida95/uritemplate
+   $ go get -u github.com/yosida95/uritemplate/v3
 
 Documentation
 ~~~~~~~~~~~~~
