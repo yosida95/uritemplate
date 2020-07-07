@@ -85,3 +85,11 @@ func TestTemplate_Match(t *testing.T) {
 		}
 	}
 }
+
+func TestTemplate_NotMatch(t *testing.T) {
+	tmpl := MustNew("https://example.com/foo{?bar}")
+	match := tmpl.Match("https://example.com/foobaz")
+	if match != nil {
+		t.Errorf("must not match")
+	}
+}

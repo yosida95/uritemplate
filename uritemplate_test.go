@@ -230,6 +230,13 @@ func TestTemplateRegexp(t *testing.T) {
 	}
 }
 
+func TestTemplateRegexp_NotMatch(t *testing.T) {
+	tmpl := MustNew("https://example.com/foo{?bar}")
+	if tmpl.Regexp().MatchString("https://example.com/foobaz") {
+		t.Errorf("must not match")
+	}
+}
+
 func BenchmarkExpressionExpand(b *testing.B) {
 	c := testTemplateCases[0]
 	tmpl, err := New(c.raw)
