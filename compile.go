@@ -53,10 +53,6 @@ func (c *compiler) opWithName(opcode progOpcode, name string) uint32 {
 	return addr
 }
 
-func (c *compiler) sizeString(str string) uint32 {
-	return uint32(utf8.RuneCountInString(str))
-}
-
 func (c *compiler) compileString(str string) {
 	for i := 0; i < len(str); {
 		// NOTE(yosida95): It is confirmed at parse time that literals
@@ -65,10 +61,6 @@ func (c *compiler) compileString(str string) {
 		c.opWithRune(opRune, r)
 		i += size
 	}
-}
-
-func (c *compiler) sizeRuneClass(rc runeClass, maxlen int) uint32 {
-	return 7*uint32(maxlen) - 1
 }
 
 func (c *compiler) compileRuneClass(rc runeClass, maxlen int) {
@@ -85,10 +77,6 @@ func (c *compiler) compileRuneClass(rc runeClass, maxlen int) {
 	}
 }
 
-func (c *compiler) sizeRuneClassInfinite(rc runeClass) uint32 {
-	return 8
-}
-
 func (c *compiler) compileRuneClassInfinite(rc runeClass) {
 	start := c.opWithAddrDelta(opSplit, 3)        // raw rune or pct-encoded
 	c.opWithRuneClass(opRuneClass, rc)            // raw rune
@@ -98,16 +86,6 @@ func (c *compiler) compileRuneClassInfinite(rc runeClass) {
 	c.opWithRuneClass(opRuneClass, runeClassPctE) //
 	c.opWithAddrDelta(opSplit, 2)                 // loop
 	c.opWithAddr(opJmp, start)                    //
-}
-
-func (c *compiler) sizeVarspecValue(spec varspec, expr *expression) uint32 {
-	size := uint32(2) // opCapStart + opCapEnd
-	if spec.maxlen > 0 {
-		size += c.sizeRuneClass(expr.allow, spec.maxlen)
-	} else {
-		size += c.sizeRuneClassInfinite(expr.allow)
-	}
-	return size
 }
 
 func (c *compiler) compileVarspecValue(spec varspec, expr *expression) {
@@ -131,22 +109,6 @@ func (c *compiler) compileVarspecValue(spec varspec, expr *expression) {
 
 	capEnd := c.opWithName(opCapEnd, specname)
 	c.prog.op[split].i = capEnd
-}
-
-func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
-	var sep string
-	if spec.explode {
-		sep = expr.sep
-	} else {
-		sep = ","
-	}
-
-	size := 5 + c.sizeString(expr.ifemp) + c.sizeVarspecValue(spec, expr) + c.sizeString(sep)
-	if expr.named {
-		size += c.sizeString(spec.name) + 1
-		size += c.sizeString("=")
-	}
-	return size
 }
 
 func (c *compiler) compileVarspec(spec varspec, expr *expression) {
