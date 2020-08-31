@@ -121,12 +121,16 @@ func (c *compiler) compileVarspecValue(spec varspec, expr *expression) {
 	c.prog.numCap++
 
 	c.opWithName(opCapStart, specname)
+
+	split := c.op(opSplit)
 	if spec.maxlen > 0 {
 		c.compileRuneClass(expr.allow, spec.maxlen)
 	} else {
 		c.compileRuneClassInfinite(expr.allow)
 	}
-	c.opWithName(opCapEnd, specname)
+
+	capEnd := c.opWithName(opCapEnd, specname)
+	c.prog.op[split].i = capEnd
 }
 
 func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
@@ -146,70 +150,94 @@ func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
 }
 
 func (c *compiler) compileVarspec(spec varspec, expr *expression) {
-	var sep string
-	if spec.explode {
-		sep = expr.sep
-	} else {
-		sep = ","
-	}
-
-	var offset uint32
-	var preval string
-	var sizePreval uint32
-	if expr.named { // begin loop
-		preval = "="
-		sizePreval = c.sizeString(preval)
-
+	switch {
+	case expr.named && spec.explode:
+		split1 := c.op(opSplit)
+		noop := c.op(opNoop)
 		c.compileString(spec.name)
-		if !spec.explode {
-			offset += c.sizeString(spec.name)
-			offset += sizePreval
-		}
-	}
 
-	addr := c.opWithAddrDelta(opJmpIfNotEmpty, 2+c.sizeString(expr.ifemp)) // jmp to spec
-	(&c.prog.op[addr]).name = spec.name                                    //
-	c.compileString(expr.ifemp)                                            // expr.ifemp
-	c.opWithAddrDelta(opJmp, 1+c.sizeVarspecValue(spec, expr)+sizePreval)  // skip spec
-	c.compileString(preval)                                                // preval
-	c.compileVarspecValue(spec, expr)                                      // spec
-	c.opWithAddrDelta(opSplit, 2)                                          //
-	c.opWithAddrDelta(opJmp, 2+c.sizeString(sep))                          // break loop
-	c.compileString(sep)                                                   // sep
-	size := c.sizeVarspec(spec, expr)                                      // continue
-	c.opWithAddrDelta(opJmp, -size+offset+1)                               //
+		split2 := c.op(opSplit)
+		c.opWithRune(opRune, '=')
+		c.compileVarspecValue(spec, expr)
+
+		split3 := c.op(opSplit)
+		c.compileString(expr.sep)
+		c.opWithAddr(opJmp, noop)
+
+		c.prog.op[split2].i = uint32(len(c.prog.op))
+		c.compileString(expr.ifemp)
+		c.opWithAddr(opJmp, split3)
+
+		c.prog.op[split1].i = uint32(len(c.prog.op))
+		c.prog.op[split3].i = uint32(len(c.prog.op))
+
+	case expr.named && !spec.explode:
+		c.compileString(spec.name)
+
+		split2 := c.op(opSplit)
+		c.opWithRune(opRune, '=')
+
+		split3 := c.op(opSplit)
+
+		split4 := c.op(opSplit)
+		c.compileVarspecValue(spec, expr)
+
+		split5 := c.op(opSplit)
+		c.prog.op[split4].i = split5
+		c.compileString(",")
+		c.opWithAddr(opJmp, split4)
+
+		c.prog.op[split3].i = uint32(len(c.prog.op))
+		c.compileString(",")
+		jmp1 := c.op(opJmp)
+
+		c.prog.op[split2].i = uint32(len(c.prog.op))
+		c.compileString(expr.ifemp)
+
+		c.prog.op[split5].i = uint32(len(c.prog.op))
+		c.prog.op[jmp1].i = uint32(len(c.prog.op))
+
+	case !expr.named:
+		start := uint32(len(c.prog.op))
+		c.compileVarspecValue(spec, expr)
+
+		split1 := c.op(opSplit)
+		jmp := c.op(opJmp)
+
+		c.prog.op[split1].i = uint32(len(c.prog.op))
+		if spec.explode {
+			c.compileString(expr.sep)
+		} else {
+			c.opWithRune(opRune, ',')
+		}
+		c.opWithAddr(opJmp, start)
+
+		c.prog.op[jmp].i = uint32(len(c.prog.op))
+	}
 }
 
 func (c *compiler) compileExpression(expr *expression) {
 	if len(expr.vars) < 1 {
 		return
 	}
-	sizeFirst := c.sizeString(expr.first)
-	sizeSep := c.sizeString(expr.sep)
 
-	{
-		spec := expr.vars[0]
-		size := 1 + sizeFirst + c.sizeVarspec(spec, expr)
-
-		addr := c.opWithAddrDelta(opJmpIfNotDefined, size) // skip the spec
-		(&c.prog.op[addr]).name = spec.name                //
-		c.compileString(expr.first)                        // expr.first
-		c.compileVarspec(spec, expr)                       // spec
-	}
+	split1 := c.op(opSplit)
+	c.compileString(expr.first)
 
 	for i, size := 0, len(expr.vars); i < size; i++ {
 		spec := expr.vars[i]
-		size := 3 + // opJmpIfNotDefined + opJmpIfNotFirst + opJmp
-			sizeFirst + sizeSep + c.sizeVarspec(spec, expr)
 
-		addr := c.opWithAddrDelta(opJmpIfNotDefined, size) // skip the spec
-		(&c.prog.op[addr]).name = spec.name                //
-		c.opWithAddrDelta(opJmpIfNotFirst, sizeFirst+2)    // jmp to expr.sep
-		c.compileString(expr.first)                        //
-		c.opWithAddrDelta(opJmp, sizeSep+1)                // jmp to spec
-		c.compileString(expr.sep)                          // expr.sep
-		c.compileVarspec(spec, expr)                       // spec
+		split2 := c.op(opSplit)
+		if i > 0 {
+			split3 := c.op(opSplit)
+			c.compileString(expr.sep)
+			c.prog.op[split3].i = uint32(len(c.prog.op))
+		}
+		c.compileVarspec(spec, expr)
+		c.prog.op[split2].i = uint32(len(c.prog.op))
 	}
+
+	c.prog.op[split1].i = uint32(len(c.prog.op))
 }
 
 func (c *compiler) compileLiterals(lt literals) {

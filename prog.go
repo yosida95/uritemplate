@@ -31,6 +31,7 @@ const (
 	// result
 	opEnd
 	// fake
+	opNoop
 	opcodeMax
 )
 

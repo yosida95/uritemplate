@@ -91,6 +91,8 @@ func (m *matcher) add(list *threadList, pc uint32, pos int, next bool, cap map[s
 	case opJmpIfNotEmpty:
 		m.add(list, op.i, pos, next, cap)
 		m.add(list, pc+1, pos, next, cap)
+	case opNoop:
+		m.add(list, pc+1, pos, next, cap)
 	}
 }
 
