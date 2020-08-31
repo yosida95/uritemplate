@@ -317,11 +317,7 @@ func (p *parser) parseURITemplate() (*Template, error) {
 		raw:   p.r,
 		exprs: []template{},
 	}
-	for {
-		if len(p.r) == 0 {
-			break
-		}
-
+	for len(p.r) > 0 {
 		var expr template
 		var err error
 		if p.r[0] == '{' {

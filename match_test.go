@@ -30,7 +30,7 @@ func ExampleTemplate_Match() {
 }
 
 func TestTemplate_Match(t *testing.T) {
-	for _, c := range testTemplateCases {
+	for i, c := range testTemplateCases {
 		if c.failMatch {
 			continue
 		}
@@ -43,10 +43,11 @@ func TestTemplate_Match(t *testing.T) {
 
 		match := tmpl.Match(c.expected)
 		if match == nil {
-			t.Errorf("failed to match %q against %q", c.raw, c.expected)
+			t.Errorf("%d: failed to match %q against %q", i, c.raw, c.expected)
 			t.Log(tmpl.prog.String())
 			continue
 		}
+
 		for name, actual := range match {
 			var expected Value
 			if semi := strings.Index(name, ":"); semi >= 0 {
@@ -55,8 +56,8 @@ func TestTemplate_Match(t *testing.T) {
 				expected = testExpressionExpandVarMap[name]
 
 				if expected.T != ValueTypeString {
-					t.Errorf("failed to match %q against %q", c.raw, c.expected)
-					t.Errorf("expected %#q, but got %#q", expected, actual)
+					t.Errorf("%d: failed to match %q against %q", i, c.raw, c.expected)
+					t.Errorf("%d: expected %#v, but got %#v", i, expected, actual)
 					continue
 				}
 				if v := expected.V[0]; len(v) > maxlen {
@@ -67,21 +68,19 @@ func TestTemplate_Match(t *testing.T) {
 			}
 
 			if actual.T != expected.T {
-				t.Errorf("failed to match %q against %q", c.raw, c.expected)
-				t.Errorf("expected %#q, but got %#q", expected, actual)
-				continue
-			}
-			if len(actual.V) != len(expected.V) {
-				t.Errorf("failed to match %q against %q", c.raw, c.expected)
-				t.Errorf("expected %#q, but got %#q", expected, actual)
-				continue
-			}
-			for i := range actual.V {
-				if actual.V[i] != expected.V[i] {
-					t.Errorf("failed to match %q against %q", c.raw, c.expected)
-					t.Errorf("expected %#q, but got %#q", expected, actual)
-					break
+				t.Errorf("%d: failed to match %q against %q", i, c.raw, c.expected)
+				t.Errorf("%d: expected %#v, but got %#v", i, expected, actual)
+			} else if le, la := len(expected.V), len(actual.V); le == la {
+				for i := range actual.V {
+					if actual.V[i] != expected.V[i] {
+						t.Errorf("%d: failed to match %q against %q", i, c.raw, c.expected)
+						t.Errorf("%d: expected %#v, but got %#v", i, expected, actual)
+						break
+					}
 				}
+			} else {
+				t.Errorf("%d: failed to match %q against %q", i, c.raw, c.expected)
+				t.Errorf("%d: expected %#v, but got %#v", i, expected, actual)
 			}
 		}
 	}

@@ -7,7 +7,7 @@
 package uritemplate
 
 import (
-	"strconv"
+	"fmt"
 	"unicode/utf8"
 )
 
@@ -72,17 +72,10 @@ func (c *compiler) sizeRuneClass(rc runeClass, maxlen int) uint32 {
 }
 
 func (c *compiler) compileRuneClass(rc runeClass, maxlen int) {
-	// first rune
-	c.opWithAddrDelta(opSplit, 3)                 // raw rune or pct-encoded
-	c.opWithRuneClass(opRuneClass, rc)            // raw rune
-	c.opWithAddrDelta(opJmp, 4)                   //
-	c.opWithRune(opRune, '%')                     // pct-encoded
-	c.opWithRuneClass(opRuneClass, runeClassPctE) //
-	c.opWithRuneClass(opRuneClass, runeClassPctE) //
-	// second and subsequent rune
-	for i := 1; i < maxlen; i++ {
-		c.opWithAddrDelta(opSplit, 7*uint32(maxlen-i))
-
+	for i := 0; i < maxlen; i++ {
+		if i > 0 {
+			c.opWithAddrDelta(opSplit, 7)
+		}
 		c.opWithAddrDelta(opSplit, 3)                 // raw rune or pct-encoded
 		c.opWithRuneClass(opRuneClass, rc)            // raw rune
 		c.opWithAddrDelta(opJmp, 4)                   //
@@ -97,21 +90,19 @@ func (c *compiler) sizeRuneClassInfinite(rc runeClass) uint32 {
 }
 
 func (c *compiler) compileRuneClassInfinite(rc runeClass) {
-	// first rune
-	addr := c.opWithAddrDelta(opSplit, 3)         // raw rune or pct-encoded
+	start := c.opWithAddrDelta(opSplit, 3)        // raw rune or pct-encoded
 	c.opWithRuneClass(opRuneClass, rc)            // raw rune
 	c.opWithAddrDelta(opJmp, 4)                   //
 	c.opWithRune(opRune, '%')                     // pct-encoded
 	c.opWithRuneClass(opRuneClass, runeClassPctE) //
 	c.opWithRuneClass(opRuneClass, runeClassPctE) //
 	c.opWithAddrDelta(opSplit, 2)                 // loop
-	c.opWithAddr(opJmp, addr)                     //
+	c.opWithAddr(opJmp, start)                    //
 }
 
 func (c *compiler) sizeVarspecValue(spec varspec, expr *expression) uint32 {
-	// opCapStart + opCapEnd
-	size := uint32(2)
-	if !spec.explode && spec.maxlen > 0 {
+	size := uint32(2) // opCapStart + opCapEnd
+	if spec.maxlen > 0 {
 		size += c.sizeRuneClass(expr.allow, spec.maxlen)
 	} else {
 		size += c.sizeRuneClassInfinite(expr.allow)
@@ -121,15 +112,16 @@ func (c *compiler) sizeVarspecValue(spec varspec, expr *expression) uint32 {
 
 func (c *compiler) compileVarspecValue(spec varspec, expr *expression) {
 	var specname string
-	if !spec.explode && spec.maxlen > 0 {
-		specname = spec.name + ":" + strconv.Itoa(spec.maxlen)
+	if spec.maxlen > 0 {
+		specname = fmt.Sprintf("%s:%d", spec.name, spec.maxlen)
 	} else {
 		specname = spec.name
 	}
 
 	c.prog.numCap++
+
 	c.opWithName(opCapStart, specname)
-	if !spec.explode && spec.maxlen > 0 {
+	if spec.maxlen > 0 {
 		c.compileRuneClass(expr.allow, spec.maxlen)
 	} else {
 		c.compileRuneClassInfinite(expr.allow)
@@ -139,7 +131,7 @@ func (c *compiler) compileVarspecValue(spec varspec, expr *expression) {
 
 func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
 	var sep string
-	if spec.explode && spec.maxlen == 0 {
+	if spec.explode {
 		sep = expr.sep
 	} else {
 		sep = ","
@@ -155,7 +147,7 @@ func (c *compiler) sizeVarspec(spec varspec, expr *expression) uint32 {
 
 func (c *compiler) compileVarspec(spec varspec, expr *expression) {
 	var sep string
-	if spec.explode && spec.maxlen == 0 {
+	if spec.explode {
 		sep = expr.sep
 	} else {
 		sep = ","
@@ -205,7 +197,7 @@ func (c *compiler) compileExpression(expr *expression) {
 		c.compileVarspec(spec, expr)                       // spec
 	}
 
-	for i := 1; i < len(expr.vars); i++ {
+	for i, size := 0, len(expr.vars); i < size; i++ {
 		spec := expr.vars[i]
 		size := 3 + // opJmpIfNotDefined + opJmpIfNotFirst + opJmp
 			sizeFirst + sizeSep + c.sizeVarspec(spec, expr)
