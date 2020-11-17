@@ -187,27 +187,39 @@ func (p *parser) parseURITemplate() (*Template, error) {
 			}
 		case parseStateVarName:
 			switch r {
-			case ':':
+			case ':', '*':
+				name := p.r[p.start : p.stop-size]
+				if !validVarname(name) {
+					return nil, p.errorf("invalid varname")
+				}
+				explode := r == '*'
 				exp.vars = append(exp.vars, varspec{
-					name: p.r[p.start : p.stop-size],
+					name:    name,
+					explode: explode,
 				})
-				p.setState(parseStatePrefix)
-			case '*':
-				exp.vars = append(exp.vars, varspec{
-					name:    p.r[p.start : p.stop-size],
-					explode: true,
-				})
-				p.setState(parseStateVarList)
+				if explode {
+					p.setState(parseStateVarList)
+				} else {
+					p.setState(parseStatePrefix)
+				}
 			case ',', '}':
 				p.unread(r)
+				name := p.r[p.start:p.stop]
+				if !validVarname(name) {
+					return nil, p.errorf("invalid varname")
+				}
 				exp.vars = append(exp.vars, varspec{
-					name: p.r[p.start:p.stop],
+					name: name,
 				})
 				p.setState(parseStateVarList)
 			case '%':
 				p.unread(r)
 				if _, err := p.consumeTriplets(); err != nil {
 					return nil, err
+				}
+			case '.':
+				if dot := p.stop - size; dot == p.start || p.r[dot-1] == '.' {
+					return nil, p.errorf("invalid varname")
 				}
 			default:
 				if !unicode.Is(rangeVarchar, r) {
@@ -234,6 +246,21 @@ func (p *parser) parseURITemplate() (*Template, error) {
 			panic(fmt.Errorf("unhandled parseState(%d)", p.state))
 		}
 	}
+}
+
+func validVarname(name string) bool {
+	if l := len(name); l == 0 || name[0] == '.' || name[l-1] == '.' {
+		return false
+	}
+	for i := 1; i < len(name)-1; i++ {
+		switch c := name[i]; c {
+		case '.':
+			if name[i-1] == '.' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (p *parser) consumeTriplets() (string, error) {
