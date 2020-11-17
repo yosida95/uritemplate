@@ -104,6 +104,19 @@ func unhex(c byte) byte {
 	return 0
 }
 
+func ishex(c byte) bool {
+	switch {
+	case '0' <= c && c <= '9':
+		return true
+	case 'a' <= c && c <= 'f':
+		return true
+	case 'A' <= c && c <= 'F':
+		return true
+	default:
+		return false
+	}
+}
+
 func pctDecode(s string) string {
 	size := len(s)
 	for i := 0; i < len(s); {

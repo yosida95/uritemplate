@@ -7,6 +7,7 @@
 package uritemplate
 
 import (
+	"fmt"
 	"unicode"
 	"unicode/utf8"
 )
@@ -22,14 +23,6 @@ const (
 	parseOpSemicolon
 	parseOpQuestion
 	parseOpAmpersand
-)
-
-type parseState int
-
-const (
-	parseStateDefault parseState = iota
-	parseStateHexDigit1
-	parseStateHexDigit2
 )
 
 var (
@@ -82,253 +75,172 @@ var (
 )
 
 type parser struct {
-	r    string
-	read int
+	r     string
+	start int
+	stop  int
+	state parseState
 }
 
-func (p *parser) dropN(n int) {
-	p.read += n
-	p.r = p.r[n:]
+func (p *parser) errorf(format string, a ...interface{}) error {
+	return errorf(p.stop, format, a...)
 }
 
-func (p *parser) consumeOp() (parseOp, error) {
-	debug.Printf("consumeOp: %q", p.r)
-	switch p.r[0] {
-	case '+':
-		p.dropN(1)
-		return parseOpPlus, nil
-	case '#':
-		p.dropN(1)
-		return parseOpCrosshatch, nil
-	case '.':
-		p.dropN(1)
-		return parseOpDot, nil
-	case '/':
-		p.dropN(1)
-		return parseOpSlash, nil
-	case ';':
-		p.dropN(1)
-		return parseOpSemicolon, nil
-	case '?':
-		p.dropN(1)
-		return parseOpQuestion, nil
-	case '&':
-		p.dropN(1)
-		return parseOpAmpersand, nil
-	case '=', ',', '!', '@', '|': // op-reserved
-		return 0, errorf(p.read+1, "unsupported operator")
-	default:
-		return parseOpSimple, nil
-	}
+func (p *parser) rune() (rune, int) {
+	r, size := utf8.DecodeRuneInString(p.r[p.stop:])
+	p.stop += size
+	return r, size
 }
 
-func (p *parser) consumeMaxLength() (int, error) {
-	debug.Printf("consumeMaxLength: %q", p.r)
-	c := p.r[0]
-	if c < '1' || c > '9' {
-		return 0, errorf(p.read+1, "max-length must be integer")
-	}
-	p.dropN(1)
-	maxlen := int(c - '0')
-
-	for {
-		c := p.r[0]
-		if c < '0' || c > '9' {
-			break
-		}
-		p.dropN(1)
-
-		maxlen *= 10
-		maxlen += int(c - '0')
-		if maxlen >= 9999 || len(p.r) == 0 {
-			break
-		}
-	}
-	return maxlen, nil
+func (p *parser) unread(r rune) {
+	p.stop -= utf8.RuneLen(r)
 }
 
-func (p *parser) consumeVarspec() (varspec, error) {
-	debug.Printf("consumeVarspec: %q", p.r)
-	var state parseState
-	var ret varspec
-	var err error
-	for i := 0; i < len(p.r); {
-		r, size := utf8.DecodeRuneInString(p.r[i:])
-		if r == utf8.RuneError {
-			return ret, errorf(p.read+i, "invalid encoding")
-		}
-		switch state {
-		case parseStateDefault:
-			switch r {
-			default:
-				if !unicode.Is(rangeVarchar, r) {
-					debug.Printf("consumeVarspec: found=%q at=%d", string(r), i)
-					return ret, errorf(p.read+i, "invalid varname")
-				}
-				i += size
-				continue
-			case '%':
-				state = parseStateHexDigit1
-			case ':':
-				ret.name = p.r[:i]
-				debug.Printf("consumeVarspec: name=%q", ret.name)
-				p.dropN(i + 1) // name + ':'
-				ret.maxlen, err = p.consumeMaxLength()
-				if err != nil {
-					return ret, err
-				}
-				debug.Printf("consumeVarspec: maxlen=%d", ret.maxlen)
-				return ret, nil
-			case '*':
-				ret.name = p.r[:i]
-				debug.Printf("consumeVarspec: name=%q", ret.name)
-				ret.explode = true
-				debug.Printf("consumeVarspec: explode=true")
-				p.dropN(i + 1) // name + '*'
-				return ret, nil
-			case ',', '}':
-				ret.name = p.r[:i]
-				debug.Printf("consumeVarspec: name=%q", ret.name)
-				p.dropN(i)
-				return ret, nil
-			}
-		case parseStateHexDigit1:
-			if !unicode.Is(unicode.ASCII_Hex_Digit, r) {
-				debug.Printf("consumeVarspec: found=%q at=%d", string(r), i)
-				return ret, errorf(p.read+i, "invalid pct-encoded")
-			}
-			state = parseStateHexDigit2
-		case parseStateHexDigit2:
-			if !unicode.Is(unicode.ASCII_Hex_Digit, r) {
-				debug.Printf("consumeVarspec: found=%q at=%d", string(r), i)
-				return ret, errorf(p.read+i, "invalid pct-encoded")
-			}
-			state = parseStateDefault
-		}
-	}
-	debug.Printf("consumeVarspec: unexpected end of URI Template")
-	return ret, errorf(p.read+1, "incomplete template")
-}
+type parseState int
 
-func (p *parser) consumeVariableList() ([]varspec, error) {
-	debug.Printf("consumeVariableList: %q", p.r)
-	varspecs := []varspec{}
-	for {
-		varspec, err := p.consumeVarspec()
-		if err != nil {
-			return nil, err
-		}
-		varspecs = append(varspecs, varspec)
+const (
+	parseStateDefault = parseState(iota)
+	parseStateOperator
+	parseStateVarList
+	parseStateVarName
+	parseStatePrefix
+)
 
-		if len(p.r) == 0 {
-			return nil, errorf(p.read+1, "incomplete template")
-		}
-		switch p.r[0] {
-		case ',':
-			p.dropN(1)
-			continue
-		case '}':
-			return varspecs, nil
-		default:
-			return nil, errorf(p.read+1, "unrecognized variable-list")
-		}
-	}
-}
-
-func (p *parser) consumeExpression() (template, error) {
-	debug.Printf("consumeExpression: %q", p.r)
-
-	p.dropN(1) // '{'
-	if len(p.r) == 0 {
-		return nil, errorf(p.read+1, "incomplete template")
-	}
-
-	op, err := p.consumeOp()
-	if err != nil {
-		return nil, err
-	}
-	if len(p.r) == 0 {
-		return nil, errorf(p.read+1, "incomplete template")
-	}
-
-	varspecs, err := p.consumeVariableList()
-	if err != nil {
-		return nil, err
-	}
-	p.dropN(1) // '}'
-
-	ret := expression{
-		vars: varspecs,
-		op:   op,
-	}
-	ret.init()
-	return &ret, nil
-}
-
-func (p *parser) consumeLiterals() (template, error) {
-	debug.Printf("consumeLiterals: %q", p.r)
-	state := parseStateDefault
-	i := 0
-Loop:
-	for i < len(p.r) {
-		r, size := utf8.DecodeRuneInString(p.r[i:])
-		if r == utf8.RuneError {
-			return nil, errorf(p.read+i, "invalid encoding")
-		}
-		switch state {
-		case parseStateDefault:
-			switch r {
-			case '{':
-				break Loop
-			case '%':
-				state = parseStateHexDigit1
-			default:
-				if !unicode.Is(rangeLiterals, r) {
-					debug.Printf("consumeLiterals: found=%q at=%d", string(r), i)
-					return nil, errorf(p.read+i, "invalid literals")
-				}
-			}
-		case parseStateHexDigit1:
-			if !unicode.Is(unicode.ASCII_Hex_Digit, r) {
-				debug.Printf("consumeLiterals: found=%q at=%d", string(r), i)
-				return nil, errorf(p.read+i, "invalid pct-encoded")
-			}
-			state = parseStateHexDigit2
-		case parseStateHexDigit2:
-			if !unicode.Is(unicode.ASCII_Hex_Digit, r) {
-				debug.Printf("consumeLiterals: found=%q at=%d", string(r), i)
-				return nil, errorf(p.read+i, "invalid pct-encoded")
-			}
-			state = parseStateDefault
-		}
-		i += size
-	}
-	if state != parseStateDefault {
-		return nil, errorf(p.read+i, "invalid pct-encoded")
-	}
-	exp := literals(p.r[:i])
-	p.dropN(i)
-	return exp, nil
+func (p *parser) setState(state parseState) {
+	p.state = state
+	p.start = p.stop
 }
 
 func (p *parser) parseURITemplate() (*Template, error) {
-	debug.Printf("parseURITemplate: %q", p.r)
 	tmpl := Template{
 		raw:   p.r,
 		exprs: []template{},
 	}
-	for len(p.r) > 0 {
-		var expr template
-		var err error
-		if p.r[0] == '{' {
-			expr, err = p.consumeExpression()
-		} else {
-			expr, err = p.consumeLiterals()
+
+	var exp *expression
+	for {
+		r, size := p.rune()
+		if r == utf8.RuneError {
+			if size == 0 {
+				if p.state != parseStateDefault {
+					return nil, p.errorf("incomplete template")
+				}
+				if p.start < p.stop {
+					tmpl.exprs = append(tmpl.exprs, literals(p.r[p.start:p.stop]))
+				}
+				return &tmpl, nil
+			}
+			return nil, p.errorf("invalid UTF-8 encoding")
 		}
-		if err != nil {
-			return nil, err
+
+		switch p.state {
+		case parseStateDefault:
+			switch r {
+			case '{':
+				if stop := p.stop - size; stop > p.start {
+					tmpl.exprs = append(tmpl.exprs, literals(p.r[p.start:stop]))
+				}
+				exp = &expression{}
+				tmpl.exprs = append(tmpl.exprs, exp)
+				p.setState(parseStateOperator)
+			case '%':
+				p.unread(r)
+				if _, err := p.consumeTriplets(); err != nil {
+					return nil, err
+				}
+			default:
+				if !unicode.Is(rangeLiterals, r) {
+					return nil, p.errorf("invalid literals")
+				}
+			}
+		case parseStateOperator:
+			switch r {
+			default:
+				p.unread(r)
+				exp.op = parseOpSimple
+			case '+':
+				exp.op = parseOpPlus
+			case '#':
+				exp.op = parseOpCrosshatch
+			case '.':
+				exp.op = parseOpDot
+			case '/':
+				exp.op = parseOpSlash
+			case ';':
+				exp.op = parseOpSemicolon
+			case '?':
+				exp.op = parseOpQuestion
+			case '&':
+				exp.op = parseOpAmpersand
+			case '=', ',', '!', '@', '|': // op-reserved
+				return nil, p.errorf("unsupported operator")
+			}
+			p.setState(parseStateVarName)
+		case parseStateVarList:
+			switch r {
+			case ',':
+				p.setState(parseStateVarName)
+			case '}':
+				exp.init()
+				p.setState(parseStateDefault)
+			default:
+				return nil, p.errorf("invalid variable-list")
+			}
+		case parseStateVarName:
+			switch r {
+			case ':':
+				exp.vars = append(exp.vars, varspec{
+					name: p.r[p.start : p.stop-size],
+				})
+				p.setState(parseStatePrefix)
+			case '*':
+				exp.vars = append(exp.vars, varspec{
+					name:    p.r[p.start : p.stop-size],
+					explode: true,
+				})
+				p.setState(parseStateVarList)
+			case ',', '}':
+				p.unread(r)
+				exp.vars = append(exp.vars, varspec{
+					name: p.r[p.start:p.stop],
+				})
+				p.setState(parseStateVarList)
+			case '%':
+				p.unread(r)
+				if _, err := p.consumeTriplets(); err != nil {
+					return nil, err
+				}
+			default:
+				if !unicode.Is(rangeVarchar, r) {
+					return nil, p.errorf("invalid varname")
+				}
+			}
+		case parseStatePrefix:
+			spec := &(exp.vars[len(exp.vars)-1])
+			switch {
+			case '0' <= r && r <= '9':
+				spec.maxlen *= 10
+				spec.maxlen += int(r - '0')
+				if spec.maxlen == 0 || spec.maxlen > 9999 {
+					return nil, p.errorf("max-length must be (0, 9999]")
+				}
+			default:
+				if spec.maxlen == 0 {
+					return nil, p.errorf("max-length must be (0, 9999]")
+				}
+				p.unread(r)
+				p.setState(parseStateVarList)
+			}
+		default:
+			panic(fmt.Errorf("unhandled parseState(%d)", p.state))
 		}
-		tmpl.exprs = append(tmpl.exprs, expr)
 	}
-	return &tmpl, nil
+}
+
+func (p *parser) consumeTriplets() (string, error) {
+	if len(p.r)-p.stop < 3 || p.r[p.stop] != '%' || !ishex(p.r[p.stop+1]) || !ishex(p.r[p.stop+2]) {
+		return "", errorf(p.stop, "incomplete pct-encodeed")
+	}
+	triplets := p.r[p.stop : p.stop+3]
+	p.stop += 3
+	return triplets, nil
 }
