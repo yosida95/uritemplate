@@ -81,13 +81,15 @@ type parser struct {
 	state parseState
 }
 
-func (p *parser) errorf(format string, a ...interface{}) error {
-	return errorf(p.stop, format, a...)
+func (p *parser) errorf(i rune, format string, a ...interface{}) error {
+	return fmt.Errorf("%s: %s%s", fmt.Sprintf(format, a...), p.r[0:p.stop], string(i))
 }
 
 func (p *parser) rune() (rune, int) {
 	r, size := utf8.DecodeRuneInString(p.r[p.stop:])
-	p.stop += size
+	if r != utf8.RuneError {
+		p.stop += size
+	}
 	return r, size
 }
 
@@ -122,14 +124,14 @@ func (p *parser) parseURITemplate() (*Template, error) {
 		if r == utf8.RuneError {
 			if size == 0 {
 				if p.state != parseStateDefault {
-					return nil, p.errorf("incomplete template")
+					return nil, p.errorf('_', "incomplete expression")
 				}
 				if p.start < p.stop {
 					tmpl.exprs = append(tmpl.exprs, literals(p.r[p.start:p.stop]))
 				}
 				return &tmpl, nil
 			}
-			return nil, p.errorf("invalid UTF-8 encoding")
+			return nil, p.errorf('_', "invalid UTF-8 sequence")
 		}
 
 		switch p.state {
@@ -144,12 +146,13 @@ func (p *parser) parseURITemplate() (*Template, error) {
 				p.setState(parseStateOperator)
 			case '%':
 				p.unread(r)
-				if _, err := p.consumeTriplets(); err != nil {
+				if err := p.consumeTriplet(); err != nil {
 					return nil, err
 				}
 			default:
 				if !unicode.Is(rangeLiterals, r) {
-					return nil, p.errorf("invalid literals")
+					p.unread(r)
+					return nil, p.errorf('_', "unacceptable character (hint: use %%XX encoding)")
 				}
 			}
 		case parseStateOperator:
@@ -172,7 +175,7 @@ func (p *parser) parseURITemplate() (*Template, error) {
 			case '&':
 				exp.op = parseOpAmpersand
 			case '=', ',', '!', '@', '|': // op-reserved
-				return nil, p.errorf("unsupported operator")
+				return nil, p.errorf('|', "unimplemented operator (op-reserved)")
 			}
 			p.setState(parseStateVarName)
 		case parseStateVarList:
@@ -183,14 +186,15 @@ func (p *parser) parseURITemplate() (*Template, error) {
 				exp.init()
 				p.setState(parseStateDefault)
 			default:
-				return nil, p.errorf("invalid variable-list")
+				p.unread(r)
+				return nil, p.errorf('_', "unrecognized value modifier")
 			}
 		case parseStateVarName:
 			switch r {
 			case ':', '*':
 				name := p.r[p.start : p.stop-size]
-				if !validVarname(name) {
-					return nil, p.errorf("invalid varname")
+				if !isValidVarname(name) {
+					return nil, p.errorf('|', "unacceptable variable name")
 				}
 				explode := r == '*'
 				exp.vars = append(exp.vars, varspec{
@@ -205,8 +209,8 @@ func (p *parser) parseURITemplate() (*Template, error) {
 			case ',', '}':
 				p.unread(r)
 				name := p.r[p.start:p.stop]
-				if !validVarname(name) {
-					return nil, p.errorf("invalid varname")
+				if !isValidVarname(name) {
+					return nil, p.errorf('|', "unacceptable variable name")
 				}
 				exp.vars = append(exp.vars, varspec{
 					name: name,
@@ -214,16 +218,17 @@ func (p *parser) parseURITemplate() (*Template, error) {
 				p.setState(parseStateVarList)
 			case '%':
 				p.unread(r)
-				if _, err := p.consumeTriplets(); err != nil {
+				if err := p.consumeTriplet(); err != nil {
 					return nil, err
 				}
 			case '.':
 				if dot := p.stop - size; dot == p.start || p.r[dot-1] == '.' {
-					return nil, p.errorf("invalid varname")
+					return nil, p.errorf('|', "unacceptable variable name")
 				}
 			default:
 				if !unicode.Is(rangeVarchar, r) {
-					return nil, p.errorf("invalid varname")
+					p.unread(r)
+					return nil, p.errorf('_', "unacceptable variable name")
 				}
 			}
 		case parseStatePrefix:
@@ -233,22 +238,23 @@ func (p *parser) parseURITemplate() (*Template, error) {
 				spec.maxlen *= 10
 				spec.maxlen += int(r - '0')
 				if spec.maxlen == 0 || spec.maxlen > 9999 {
-					return nil, p.errorf("max-length must be (0, 9999]")
+					return nil, p.errorf('|', "max-length must be (0, 9999]")
 				}
 			default:
-				if spec.maxlen == 0 {
-					return nil, p.errorf("max-length must be (0, 9999]")
-				}
 				p.unread(r)
+				if spec.maxlen == 0 {
+					return nil, p.errorf('_', "max-length must be (0, 9999]")
+				}
 				p.setState(parseStateVarList)
 			}
 		default:
-			panic(fmt.Errorf("unhandled parseState(%d)", p.state))
+			p.unread(r)
+			panic(p.errorf('_', "unhandled parseState(%d)", p.state))
 		}
 	}
 }
 
-func validVarname(name string) bool {
+func isValidVarname(name string) bool {
 	if l := len(name); l == 0 || name[0] == '.' || name[l-1] == '.' {
 		return false
 	}
@@ -263,11 +269,10 @@ func validVarname(name string) bool {
 	return true
 }
 
-func (p *parser) consumeTriplets() (string, error) {
+func (p *parser) consumeTriplet() error {
 	if len(p.r)-p.stop < 3 || p.r[p.stop] != '%' || !ishex(p.r[p.stop+1]) || !ishex(p.r[p.stop+2]) {
-		return "", errorf(p.stop, "incomplete pct-encodeed")
+		return p.errorf('_', "incomplete pct-encodeed")
 	}
-	triplets := p.r[p.stop : p.stop+3]
 	p.stop += 3
-	return triplets, nil
+	return nil
 }

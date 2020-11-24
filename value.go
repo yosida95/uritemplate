@@ -8,17 +8,21 @@ package uritemplate
 
 import "strings"
 
+// A varname containing pct-encoded characters is not the same variable as
+// a varname with those same characters decoded.
+//
+// -- https://tools.ietf.org/html/rfc6570#section-2.3
 type Values map[string]Value
 
 func (v Values) Set(name string, value Value) {
-	v[name] = value // TODO(yosida95): canonicalize pct-encoded in the name
+	v[name] = value
 }
 
 func (v Values) Get(name string) Value {
 	if v == nil {
 		return Value{}
 	}
-	return v[name] // TODO(yosida95): canonicalize pct-encoded in the name
+	return v[name]
 }
 
 type ValueType uint8
