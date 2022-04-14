@@ -47,6 +47,8 @@ var (
 	}{
 		// below cases are quoted from the RFC
 		// http://tools.ietf.org/html/rfc6570
+		// § 2.1
+		{"'{count}'", "'one,two,three'", false},
 		// § 3.2.1
 		{"{count}", "one,two,three", false},
 		{"{count*}", "one,two,three", false},

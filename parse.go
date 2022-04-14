@@ -39,8 +39,7 @@ var (
 		R16: []unicode.Range16{
 			{Lo: 0x0021, Hi: 0x0021, Stride: 1}, // '!'
 			{Lo: 0x0023, Hi: 0x0024, Stride: 1}, // '#' - '$'
-			{Lo: 0x0026, Hi: 0x0026, Stride: 1}, // '&'
-			{Lo: 0x0028, Hi: 0x003B, Stride: 1}, // '(' - ';'
+			{Lo: 0x0026, Hi: 0x003B, Stride: 1}, // '&' ''' '(' - ';'
 			{Lo: 0x003D, Hi: 0x003D, Stride: 1}, // '='
 			{Lo: 0x003F, Hi: 0x005B, Stride: 1}, // '?' - '['
 			{Lo: 0x005D, Hi: 0x005D, Stride: 1}, // ']'
